@@ -41,6 +41,8 @@ private[simba] object IndexedRelation {
         RTreeIndexedRelation(child.output, child, table_name, column_keys, index_name)()
       case HashMapType =>
         HashMapIndexedRelation(child.output, child, table_name, column_keys, index_name)()
+      case QuadTreeType=>
+        QuadTreeIndexedRelation(child.output,child,table_name,column_keys,index_name)()
       case _ => null
     }
   }

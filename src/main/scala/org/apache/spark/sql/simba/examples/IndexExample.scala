@@ -1,7 +1,7 @@
 package org.apache.spark.sql.simba.examples
 
 import org.apache.spark.sql.simba.{Dataset, SimbaSession}
-import org.apache.spark.sql.simba.index.{RTreeType, TreapType}
+import org.apache.spark.sql.simba.index.{HashMapType, QuadTreeType, RTreeType, TreapType}
 
 /**
   * Created by dongx on 3/7/2017.
@@ -17,10 +17,10 @@ object IndexExample {
       .config("simba.index.partitions", "64")
       .getOrCreate()
 
-    buildIndex(simbaSession)
-    useIndex1(simbaSession)
+    //buildIndex(simbaSession)
+    //useIndex1(simbaSession)
     useIndex2(simbaSession)
-    simbaSession.stop()
+    //simbaSession.stop()
   }
 
   private def buildIndex(simba: SimbaSession): Unit = {
@@ -29,6 +29,7 @@ object IndexExample {
       PointData(2.0, 2.0, 3.0, "4"),PointData(3.0, 3.0, 3.0, "5"),PointData(4.0, 4.0, 3.0, "6")).toDS
 
     datapoints.createOrReplaceTempView("a")
+    //simba.indexTable(tableName = "a",HashMapType,"test",Array("x","y"))
 
     simba.indexTable("a", RTreeType, "testqtree",  Array("x", "y") )
 
@@ -43,7 +44,7 @@ object IndexExample {
 
     datapoints.createOrReplaceTempView("b")
 
-    simba.indexTable("b", RTreeType, "RtreeForData",  Array("x", "y") )
+    simba.indexTable("b", RTreeType, "QuadTreeForData",  Array("x", "y") )
 
     simba.showIndex("b")
 

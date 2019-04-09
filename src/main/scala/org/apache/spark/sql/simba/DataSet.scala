@@ -228,6 +228,7 @@ class Dataset[T] private[simba] (@transient val simbaSession: SimbaSession,
 
   private def getAttributes(keys: Array[String], attrs: Seq[Attribute] = this.queryExecution.analyzed.output)
   : Array[Attribute] = {
+    val x=this.queryExecution.analyzed.output
     keys.map(key => {
       val temp = attrs.indexWhere(_.name == key)
       if (temp >= 0) attrs(temp)

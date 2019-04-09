@@ -18,8 +18,8 @@ object BasicSpatialOps {
       .getOrCreate()
 
     runRangeQuery(simbaSession)
-    runKnnQuery(simbaSession)
-    runJoinQUery(simbaSession)
+    //runKnnQuery(simbaSession)
+    //runJoinQUery(simbaSession)
     simbaSession.stop()
   }
 
@@ -28,6 +28,7 @@ object BasicSpatialOps {
     import simba.implicits._
     val caseClassDS = Seq(PointData(1.0, 1.0, 3.0, "1"),  PointData(2.0, 2.0, 3.0, "2"), PointData(2.0, 2.0, 3.0, "3"),
       PointData(2.0, 2.0, 3.0, "4"),PointData(3.0, 3.0, 3.0, "5"),PointData(4.0, 4.0, 3.0, "6")).toDS()
+
 
     import simba.simbaImplicits._
     caseClassDS.knn(Array("x", "y"),Array(1.0, 1.0),4).show(4)
@@ -39,6 +40,8 @@ object BasicSpatialOps {
     import simba.implicits._
     val caseClassDS = Seq(PointData(1.0, 1.0, 3.0, "1"),  PointData(2.0, 2.0, 3.0, "2"), PointData(2.0, 2.0, 3.0, "3"),
       PointData(2.0, 2.0, 3.0, "4"),PointData(3.0, 3.0, 3.0, "5"),PointData(4.0, 4.0, 3.0, "6")).toDS()
+    caseClassDS.printSchema()
+    //caseClassDS.sqlContext("select * where ")
 
     import simba.simbaImplicits._
     caseClassDS.range(Array("x", "y"),Array(1.0, 1.0),Array(3.0, 3.0)).show(10)

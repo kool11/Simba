@@ -19,17 +19,20 @@ package org.apache.spark.sql.simba
 
 import java.util.concurrent.atomic.AtomicReference
 
-import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.internal.Logging
 import org.apache.spark.scheduler.{SparkListener, SparkListenerApplicationEnd}
-import org.apache.spark.sql.{Encoder, Row, SparkSession, DataFrame => SQLDataFrame, Dataset => SQLDataset}
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.execution.ui.SQLListener
 import org.apache.spark.sql.internal.SessionState
 import org.apache.spark.sql.internal.StaticSQLConf._
 import org.apache.spark.sql.simba.index.IndexType
+import org.apache.spark.sql.simba.spatial.MBR
+import org.apache.spark.sql.{Encoder, SparkSession, DataFrame => SQLDataFrame, Dataset => SQLDataset}
+import org.apache.spark.storage.BlockId
 import org.apache.spark.util.Utils
+import org.apache.spark.{SparkConf, SparkContext}
 
+import scala.collection.mutable
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal
@@ -87,6 +90,7 @@ class SimbaSession private[simba] (@transient override val sparkContext: SparkCo
     implicit def dataframeToSimbaDataFrame(df: SQLDataFrame): DataFrame =
       Dataset.ofRows(self, df.queryExecution.logical)
   }
+
 }
 
 object SimbaSession {
@@ -200,6 +204,12 @@ object SimbaSession {
     }
   }
 
+  val distanceArray:mutable.LinkedHashMap[BlockId,MBR]=new mutable.LinkedHashMap[BlockId,MBR]
+
+  def addDistanceArray(block:BlockId,mbr:MBR):Unit={
+    distanceArray.put(block,mbr)
+  }
+
   def builder(): Builder = new Builder
 
   def setActiveSession(session: SimbaSession): Unit = {
@@ -218,7 +228,7 @@ object SimbaSession {
     defaultSession.set(null)
   }
 
-  private[sql] def getActiveSession: Option[SimbaSession] = Option(activeThreadSession.get)
+  private[spark] def getActiveSession: Option[SimbaSession] = Option(activeThreadSession.get)
 
   private[sql] def getDefaultSession: Option[SimbaSession] = Option(defaultSession.get)
 
