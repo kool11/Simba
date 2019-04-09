@@ -22,7 +22,6 @@ import java.nio.ByteBuffer
 import org.apache.spark.internal.Logging
 import org.apache.spark.memory.{MemoryManager, MemoryMode}
 import org.apache.spark.serializer.{SerializationStream, SerializerManager}
-import org.apache.spark.sql.simba.SimbaSession
 import org.apache.spark.sql.simba.spatial.MBR
 import org.apache.spark.storage.{BlockId, BlockInfoManager, StreamBlockId}
 import org.apache.spark.unsafe.Platform
@@ -217,8 +216,8 @@ private[spark] class mbpMemoryStore(
     memoryManager, blockEvictionHandler: BlockEvictionHandler) {
   self=>
   // TODO: load the thres from index or config
-  //val distArray = new mutable.LinkedHashMap[BlockId,MBR]
-  val distArray = SimbaSession.distanceArray
+  val distArray = new mutable.LinkedHashMap[BlockId,MBR]()
+  //val distArray = SimbaSession.distanceArray
   private val entries= new knnSpatialPQ2[BlockId, MemoryEntry[_]](distArray)
 
   //private val entries = new knnSpatialPQ(this)
