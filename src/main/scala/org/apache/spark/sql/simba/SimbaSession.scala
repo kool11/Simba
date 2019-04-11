@@ -30,9 +30,8 @@ import org.apache.spark.sql.simba.spatial.MBR
 import org.apache.spark.sql.{Encoder, SparkSession, DataFrame => SQLDataFrame, Dataset => SQLDataset}
 import org.apache.spark.storage.BlockId
 import org.apache.spark.util.Utils
-import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.{SparkConf, SparkContext, SparkEnv}
 
-import scala.collection.mutable
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal
@@ -204,10 +203,10 @@ object SimbaSession {
     }
   }
 
-  val distanceArray:mutable.LinkedHashMap[BlockId,MBR]=new mutable.LinkedHashMap[BlockId,MBR]
+  //val distanceArray:mutable.LinkedHashMap[BlockId,MBR]=new mutable.LinkedHashMap[BlockId,MBR]
 
   def addDistanceArray(block:BlockId,mbr:MBR):Unit={
-    distanceArray.put(block,mbr)
+    SparkEnv.get.blockManager.memoryStore.add_dist(block,mbr)
   }
 
   def builder(): Builder = new Builder

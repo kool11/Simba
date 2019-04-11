@@ -16,9 +16,25 @@
  */
 
 package org.apache.spark.storage.memory
+
+import java.nio.ByteBuffer
+
+import org.apache.spark.internal.Logging
+import org.apache.spark.memory.{MemoryManager, MemoryMode}
+import org.apache.spark.serializer.{SerializationStream, SerializerManager}
+import org.apache.spark.sql.simba.spatial.MBR
+import org.apache.spark.storage.{BlockId, BlockInfoManager, StreamBlockId}
+import org.apache.spark.unsafe.Platform
+import org.apache.spark.util.collection.SizeTrackingVector
+import org.apache.spark.util.io.{ChunkedByteBuffer, ChunkedByteBufferOutputStream}
+import org.apache.spark.util.{SizeEstimator, Utils}
+import org.apache.spark.{SparkConf, TaskContext}
+
+import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
+import scala.reflect.ClassTag
 //import com.mbp.spatialPQ
 
-/*
 case class Point(x:Double,y:Double){
   override def equals(that: Any): Boolean = {
     that match {
@@ -28,10 +44,20 @@ case class Point(x:Double,y:Double){
   }
 }
 
-case class knnSpatialPQ[A,B](distArray: mutable.LinkedHashMap[BlockId,MBR])
+/*case class MBR(x:Double,y:Double){
+  def dist(other:MBR):Double={
+    (x-other.x)*(x-other.x)*(y-other.y)*(y-other.y)
+  }
+}
+
+case class knnSpatialPQ[A,B]()
   extends mutable.LinkedHashMap[A, B] with Logging{
   import java.util.{LinkedList => JLinkedList}
+
   val neighbours = new mutable.LinkedHashMap[A,JLinkedList[(A,Double)]]
+
+  var distArray: mutable.LinkedHashMap[BlockId,MBR] = _
+
   override def put(key: A, value:B ): Option[B] = {
     key match {
       case blockrddNew:org.apache.spark.storage.RDDBlockId=>
@@ -71,12 +97,14 @@ case class knnSpatialPQ[A,B](distArray: mutable.LinkedHashMap[BlockId,MBR])
     }
     super.put(key,value)
   }
-  def moveToTail(key:(A,Double))={
+
+  private def moveToTail(key:(A,Double))={
     super.remove(key._1) match {
       case Some(v) =>super.put(key._1,v)
       //case _=>super.put(key._1,_)
     }
   }
+
   def getSpatial(key: A):Option[B]={
     key match {
       case blockrdd:org.apache.spark.storage.RDDBlockId=> {
@@ -102,17 +130,22 @@ case class knnSpatialPQ[A,B](distArray: mutable.LinkedHashMap[BlockId,MBR])
       case e => super.remove(e)
     }
   }
+
   override def clear(): Unit ={
     //locs.clear()
     neighbours.clear()
     super.clear()
   }
 
-}
-case class knnSpatialPQ2[A,B](distArray: mutable.LinkedHashMap[A,MBR])
+  def add_dist(): Unit ={
+    distArray.put()
+  }
+}*/
+case class knnSpatialPQ2[A,B]()
   extends mutable.LinkedHashMap[A, B] with Logging{
   import java.util.{LinkedList => JLinkedList}
   val neighbours = new mutable.LinkedHashMap[A,JLinkedList[(A,Double)]]
+  var distArray: mutable.LinkedHashMap[A,MBR] = new mutable.LinkedHashMap[A,MBR]()
   private def addNew(neighbour:JLinkedList[(A,Double)],x:A,dist:Double)={
     if(neighbour.size()==0){
       neighbour.add((x,dist))
@@ -186,28 +219,36 @@ case class knnSpatialPQ2[A,B](distArray: mutable.LinkedHashMap[A,MBR])
     neighbours.clear()
     super.clear()
   }
+
+  def add_dist(block:A,mbr:MBR): Unit ={
+    distArray.put(block,mbr)
+  }
+
 }
 
-private[spark] class mbpMemoryStore(
+private[spark] class MemoryStore(
                  conf: SparkConf,
                  blockInfoManager: BlockInfoManager,
                  serializerManager: SerializerManager,
                  memoryManager: MemoryManager,
                  blockEvictionHandler: BlockEvictionHandler)
-  extends MemoryStore (conf, blockInfoManager, serializerManager,
-    memoryManager, blockEvictionHandler: BlockEvictionHandler) {
+  extends Logging {
 
   // TODO: load the thres from index or config
   val distArray = new mutable.LinkedHashMap[BlockId,MBR]()
   //val distArray = SimbaSession.distanceArray
-  private val entries= new knnSpatialPQ2[BlockId, MemoryEntry[_]](distArray)
+  private val entries= new knnSpatialPQ2[BlockId, MemoryEntry[_]]()
+
+  def add_dist(block:BlockId,mbr:MBR): Unit ={
+    entries.add_dist(block,mbr)
+  }
 
   //private val entries = new knnSpatialPQ(this)
   // TODO: implement this
   private def getRddId(blockId: BlockId): Option[Int] = {
     blockId.asRDDId.map(_.rddId)
   }
-  override private[spark] def evictBlocksToFreeSpace(
+  private[spark] def evictBlocksToFreeSpace(
                                              blockId: Option[BlockId],
                                              space: Long,
                                              memoryMode: MemoryMode): Long = {
@@ -293,7 +334,7 @@ private[spark] class mbpMemoryStore(
     *
     * @return true if the put() succeeded, false otherwise.
     */
-  override def putBytes[T: ClassTag](
+  def putBytes[T: ClassTag](
                              blockId: BlockId,
                              size: Long,
                              memoryMode: MemoryMode,
@@ -331,7 +372,7 @@ private[spark] class mbpMemoryStore(
     *         `close()` on it in order to free the storage memory consumed by the partially-unrolled
     *         block.
     */
-  private[storage] override def putIteratorAsValues[T](
+  private[storage] def putIteratorAsValues[T](
                                                blockId: BlockId,
                                                values: Iterator[T],
                                                classTag: ClassTag[T]): Either[PartiallyUnrolledIterator[T], Long] = {
@@ -465,7 +506,7 @@ private[spark] class mbpMemoryStore(
     *         iterator or call `discard()` on it in order to free the storage memory consumed by the
     *         partially-unrolled block.
     */
-  private[storage] override def putIteratorAsBytes[T](
+  private[storage] def putIteratorAsBytes[T](
                                               blockId: BlockId,
                                               values: Iterator[T],
                                               classTag: ClassTag[T],
@@ -582,7 +623,7 @@ private[spark] class mbpMemoryStore(
   }
 }
 
-  override def getBytes(blockId: BlockId): Option[ChunkedByteBuffer] = {
+  def getBytes(blockId: BlockId): Option[ChunkedByteBuffer] = {
     val entry = entries.synchronized { entries.getSpatial(blockId) }
     entry match {
       case None => None
@@ -595,7 +636,7 @@ private[spark] class mbpMemoryStore(
     }
   }
 
-  override def getValues(blockId: BlockId): Option[Iterator[_]] = {
+  def getValues(blockId: BlockId): Option[Iterator[_]] = {
     val entry = entries.synchronized { entries.getSpatial(blockId) }
     entry match {
       case None => None
@@ -610,7 +651,7 @@ private[spark] class mbpMemoryStore(
     }
   }
 
-  override def remove(blockId: BlockId): Boolean = memoryManager.synchronized {
+  def remove(blockId: BlockId): Boolean = memoryManager.synchronized {
     val entry = entries.synchronized {
       entries.remove(blockId)
     }
@@ -628,7 +669,7 @@ private[spark] class mbpMemoryStore(
     }
   }
 
-  override def clear(): Unit = memoryManager.synchronized {
+  def clear(): Unit = memoryManager.synchronized {
     entries.synchronized {
       entries.clear()
     }
@@ -675,14 +716,14 @@ private[spark] class mbpMemoryStore(
     memoryUsed - currentUnrollMemory
   }
 
-  override def getSize(blockId: BlockId): Long = {
+  def getSize(blockId: BlockId): Long = {
     entries.synchronized {
       val x=entries.get(blockId)
       x.get.size
     }
   }
 
-  override def contains(blockId: BlockId): Boolean = {
+  def contains(blockId: BlockId): Boolean = {
     entries.synchronized { entries.contains(blockId) }
   }
 
@@ -696,7 +737,7 @@ private[spark] class mbpMemoryStore(
     *
     * @return whether the request is granted.
     */
-  override def reserveUnrollMemoryForThisTask(
+  def reserveUnrollMemoryForThisTask(
                                       blockId: BlockId,
                                       memory: Long,
                                       memoryMode: MemoryMode): Boolean = {
@@ -718,7 +759,7 @@ private[spark] class mbpMemoryStore(
     * Release memory used by this task for unrolling blocks.
     * If the amount is not specified, remove the current task's allocation altogether.
     */
-  override def releaseUnrollMemoryForThisTask(memoryMode: MemoryMode, memory: Long = Long.MaxValue): Unit = {
+  def releaseUnrollMemoryForThisTask(memoryMode: MemoryMode, memory: Long = Long.MaxValue): Unit = {
     val taskAttemptId = currentTaskAttemptId()
     memoryManager.synchronized {
       val unrollMemoryMap = memoryMode match {
@@ -741,14 +782,14 @@ private[spark] class mbpMemoryStore(
   /**
     * Return the amount of memory currently occupied for unrolling blocks across all tasks.
     */
-  override def currentUnrollMemory: Long = memoryManager.synchronized {
+  def currentUnrollMemory: Long = memoryManager.synchronized {
     onHeapUnrollMemoryMap.values.sum + offHeapUnrollMemoryMap.values.sum
   }
 
   /**
     * Return the amount of memory currently occupied for unrolling blocks by this task.
     */
-  override def currentUnrollMemoryForThisTask: Long = memoryManager.synchronized {
+  def currentUnrollMemoryForThisTask: Long = memoryManager.synchronized {
     onHeapUnrollMemoryMap.getOrElse(currentTaskAttemptId(), 0L) +
       offHeapUnrollMemoryMap.getOrElse(currentTaskAttemptId(), 0L)
   }
@@ -786,4 +827,3 @@ private[spark] class mbpMemoryStore(
     logMemoryUsage()
   }
 }
-*/
