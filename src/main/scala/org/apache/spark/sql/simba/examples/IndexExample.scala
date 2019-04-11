@@ -17,10 +17,10 @@ object IndexExample {
       .config("simba.index.partitions", "64")
       .getOrCreate()
 
-    //buildIndex(simbaSession)
-    //useIndex1(simbaSession)
+    buildIndex(simbaSession)
+    useIndex1(simbaSession)
     useIndex2(simbaSession)
-    //simbaSession.stop()
+    simbaSession.stop()
   }
 
   private def buildIndex(simba: SimbaSession): Unit = {
