@@ -17,7 +17,9 @@ object IndexExample {
       .config("simba.index.partitions", "64")
       .getOrCreate()
 
-    buildIndex(simbaSession)
+    val li=2
+    simbaSession.sparkContext.broadcast(li)
+    //buildIndex(simbaSession)
     useIndex1(simbaSession)
     useIndex2(simbaSession)
     simbaSession.stop()
@@ -50,6 +52,7 @@ object IndexExample {
 
     val res = simba.sql("SELECT * FROM b")
     res.knn(Array("x", "y"),Array(1.0, 1.0),4).show(4)
+    res.knn(Array("x", "y"),Array(2.0, 1.0),1).show(4)
 
   }
 

@@ -16,13 +16,13 @@
 
 package org.apache.spark.sql.simba.index
 
-import org.apache.spark.sql.simba.{ShapeType, SimbaSession}
-import org.apache.spark.sql.simba.partitioner.STRPartition
-import org.apache.spark.sql.simba.util.ShapeUtils
 import org.apache.spark.sql.catalyst.analysis.MultiInstanceRelation
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.execution.SparkPlan
+import org.apache.spark.sql.simba.{ShapeType, SimbaSession}
+import org.apache.spark.sql.simba.partitioner.STRPartition
 import org.apache.spark.sql.simba.spatial.MBR
+import org.apache.spark.sql.simba.util.ShapeUtils
 import org.apache.spark.sql.types.NumericType
 import org.apache.spark.storage.{BlockId, StorageLevel}
 
@@ -84,9 +84,13 @@ private[simba] case class RTreeIndexedRelation(output: Seq[Attribute], child: Sp
     val distArray = new mutable.LinkedHashMap[BlockId,MBR]
     val repartition_rdd_id:Int=indexed.id
     import org.apache.spark.storage.RDDBlockId
-    mbr_bounds.foreach((mbr)=>{
-      SimbaSession.addDistanceArray(RDDBlockId(repartition_rdd_id,mbr._2),mbr._1)
-    })
+    val lu:List[(RDDBlockId,MBR)]=mbr_bounds.map((mbr)=>{
+      (RDDBlockId(repartition_rdd_id,mbr._2),mbr._1)
+    }).toList
+    val bc=SimbaSession.getActiveSession.get.sparkContext.broadcast(lu)
+    import org.apache.spark.scheduler.cluster.CoarseGrainedSchedulerBackend
+    CoarseGrainedSchedulerBackend.addBlockIdMapToMBR(bc.toString())
+
     val partitionSize = indexed.mapPartitions(iter => iter.map(_.data.length)).collect()
 
     global_rtree = RTree(mbr_bounds.zip(partitionSize)
