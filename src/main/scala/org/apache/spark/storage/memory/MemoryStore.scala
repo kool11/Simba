@@ -164,6 +164,7 @@ case class knnSpatialPQ2[A,B]()
 
     val newMBR = distArray.get(key)
     if(newMBR.isDefined){
+      logInfo("distArray contain this block....hahaha")
       //TODO:get the mbr of key Block
       val neighbour =  new JLinkedList[(A,Double)]
       //candidate in memory
@@ -200,6 +201,7 @@ case class knnSpatialPQ2[A,B]()
   def getSpatial(key: A):Option[B]={
 
     if(neighbours.get(key).isDefined){
+      logInfo("neighbour contain this block....hahaha")
       val iter = neighbours(key).iterator()
       while(iter.hasNext){
         moveToTail(iter.next())
@@ -241,6 +243,9 @@ private[spark] class MemoryStore(
 
   def add_dist(block:BlockId,mbr:MBR): Unit ={
     entries.add_dist(block,mbr)
+  }
+  def add_dist(map:List[(BlockId,MBR)]):Unit={
+    map.foreach(x=>add_dist(x._1,x._2))
   }
 
   //private val entries = new knnSpatialPQ(this)

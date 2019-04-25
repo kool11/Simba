@@ -4,6 +4,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 import javax.annotation.concurrent.GuardedBy
+import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.internal.Logging
 import org.apache.spark.rpc._
 import org.apache.spark.scheduler._
@@ -133,7 +134,7 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
 
       case RegisterExecutor(executorId, executorRef, hostname, cores, logUrls) =>
         if (executorDataMap.contains(executorId)) {
-          executorRef.send(RegisterExecutorFailed("Duplicate executor ID: " + executorId))
+              executorRef.send(RegisterExecutorFailed("Duplicate executor ID: " + executorId))
           context.reply(true)
         } else {
           // If the executor's rpc env is not listening for incoming connections, `hostPort`
@@ -588,8 +589,9 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
   protected def doKillExecutors(executorIds: Seq[String]): Future[Boolean] =
     Future.successful(false)
 
-  protected def BlockIdMapToMBR(broadcast:String) = {
+  protected def BlockIdMapToMBR(broadcast:Broadcast[_]) = {
     val shouldDisable = CoarseGrainedSchedulerBackend.this.synchronized {
+      logInfo("hahahaha register.....")
       for (executor <- executorDataMap.values) {
         executor.executorEndpoint.send(BlockIdToMBR(broadcast))
       }
@@ -599,7 +601,7 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
 
 private[spark] object CoarseGrainedSchedulerBackend {
   val ENDPOINT_NAME = "CoarseGrainedScheduler"
-  def addBlockIdMapToMBR(broadcast: String)={
+  def addBlockIdMapToMBR(broadcast: Broadcast[_])={
     BlockIdToMBR(broadcast)
   }
 }

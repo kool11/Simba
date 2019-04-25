@@ -84,12 +84,12 @@ private[simba] case class RTreeIndexedRelation(output: Seq[Attribute], child: Sp
     val distArray = new mutable.LinkedHashMap[BlockId,MBR]
     val repartition_rdd_id:Int=indexed.id
     import org.apache.spark.storage.RDDBlockId
-    val lu:List[(RDDBlockId,MBR)]=mbr_bounds.map((mbr)=>{
+    val map:List[(RDDBlockId,MBR)]=mbr_bounds.map((mbr)=>{
       (RDDBlockId(repartition_rdd_id,mbr._2),mbr._1)
     }).toList
-    val bc=SimbaSession.getActiveSession.get.sparkContext.broadcast(lu)
+    val bc=SimbaSession.getActiveSession.get.sparkContext.broadcast(map)
     import org.apache.spark.scheduler.cluster.CoarseGrainedSchedulerBackend
-    CoarseGrainedSchedulerBackend.addBlockIdMapToMBR(bc.toString())
+    CoarseGrainedSchedulerBackend.addBlockIdMapToMBR(bc)
 
     val partitionSize = indexed.mapPartitions(iter => iter.map(_.data.length)).collect()
 
