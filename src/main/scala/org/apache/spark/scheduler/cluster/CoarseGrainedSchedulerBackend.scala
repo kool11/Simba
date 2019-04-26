@@ -589,7 +589,7 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
   protected def doKillExecutors(executorIds: Seq[String]): Future[Boolean] =
     Future.successful(false)
 
-  private[spark] def BlockIdMapToMBR(broadcast:Broadcast[_]) = {
+  override def BlockIdMapToMBR(broadcast:Broadcast[_]) = {
     val shouldDisable = CoarseGrainedSchedulerBackend.this.synchronized {
       logInfo("hahahaha register.....")
       for (executor <- executorDataMap.values) {
