@@ -17,14 +17,12 @@ object IndexExample {
       .config("simba.index.partitions", "64")
       .getOrCreate()
 
-    val li=2
-    //val bc=simbaSession.sparkContext.broadcast(li)
-    //val rdd = simbaSession.sparkContext.parallelize(1 to 6)
-    //rdd.map(v=>v+bc.value).collect()
+
+
     //buildIndex(simbaSession)
     useIndex1(simbaSession)
     //useIndex2(simbaSession)
-    simbaSession.stop()
+    //simbaSession.stop()
   }
 
   private def buildIndex(simba: SimbaSession): Unit = {
