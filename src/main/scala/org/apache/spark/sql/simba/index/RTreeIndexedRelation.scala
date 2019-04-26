@@ -88,8 +88,7 @@ private[simba] case class RTreeIndexedRelation(output: Seq[Attribute], child: Sp
       (RDDBlockId(repartition_rdd_id,mbr._2),mbr._1)
     }).toList
     val bc=SimbaSession.getActiveSession.get.sparkContext.broadcast(map)
-    import org.apache.spark.scheduler.cluster.CoarseGrainedSchedulerBackend
-    CoarseGrainedSchedulerBackend.addBlockIdMapToMBR(bc)
+    SimbaSession.getActiveSession.get.sparkContext.schedulerBackend.BlockIdMapToMBR(bc)
 
     val partitionSize = indexed.mapPartitions(iter => iter.map(_.data.length)).collect()
 

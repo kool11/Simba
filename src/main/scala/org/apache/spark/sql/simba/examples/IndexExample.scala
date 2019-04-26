@@ -12,7 +12,7 @@ object IndexExample {
   def main(args: Array[String]): Unit = {
     val simbaSession = SimbaSession
       .builder()
-      .master("local[4]")
+      //.master("local[4]")
       .appName("IndexExample")
       .config("simba.index.partitions", "64")
       .getOrCreate()
@@ -21,9 +21,9 @@ object IndexExample {
     //val bc=simbaSession.sparkContext.broadcast(li)
     //val rdd = simbaSession.sparkContext.parallelize(1 to 6)
     //rdd.map(v=>v+bc.value).collect()
-    buildIndex(simbaSession)
+    //buildIndex(simbaSession)
     useIndex1(simbaSession)
-    useIndex2(simbaSession)
+    //useIndex2(simbaSession)
     simbaSession.stop()
   }
 
