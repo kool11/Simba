@@ -35,6 +35,51 @@ private[spark] class BlockResult(
                                   val readMethod: DataReadMethod.Value,
                                   val bytes: Long)
 
+private[spark] trait BlockData {
+
+  def toInputStream(): InputStream
+
+  /**
+    * Returns a Netty-friendly wrapper for the block's data.
+    *
+    * Please see `ManagedBuffer.convertToNetty()` for more details.
+    */
+  def toNetty(): Object
+
+  def toChunkedByteBuffer(allocator: Int => ByteBuffer): ChunkedByteBuffer
+
+  def toByteBuffer(): ByteBuffer
+
+  def size: Long
+
+  def dispose(): Unit
+
+}
+
+private[spark] class ByteBufferBlockData(
+                                          val buffer: ChunkedByteBuffer,
+                                          val shouldDispose: Boolean) extends BlockData {
+
+  override def toInputStream(): InputStream = buffer.toInputStream(dispose = false)
+
+  override def toNetty(): Object = buffer.toNetty
+
+  override def toChunkedByteBuffer(allocator: Int => ByteBuffer): ChunkedByteBuffer = {
+    buffer.copy(allocator)
+  }
+
+  override def toByteBuffer(): ByteBuffer = buffer.toByteBuffer
+
+  override def size: Long = buffer.size
+
+  override def dispose(): Unit = {
+    if (shouldDispose) {
+      buffer.dispose()
+    }
+  }
+
+}
+
 /**
   * Manager running on every node (driver and executors) which provides interfaces for putting and
   * retrieving blocks both locally and remotely into various stores (memory, disk, and off-heap).
@@ -479,6 +524,46 @@ private[spark] class BlockManager(
           shuffleBlockResolver.getBlockData(blockId.asInstanceOf[ShuffleBlockId]).nioByteBuffer()))
     } else {
       blockInfoManager.lockForReading(blockId).map { info => doGetLocalBytes(blockId, info) }
+    }
+  }
+
+  /**prefetch RDD block from disk*/
+  def prefetch(blockId: BlockId):Boolean={
+    log.info(s"Prefetching local block $blockId from disk")
+    blockInfoManager.lockForReading(blockId) match {
+      case None =>
+        logDebug(s"Block $blockId was not found")
+        false
+      case Some(info) =>
+        val level = info.level
+        logDebug(s"Level for block $blockId is $level")
+        if (level.useDisk && diskStore.contains(blockId)&&level.useMemory) {
+          val diskBytes = diskStore.getBytes(blockId)
+          if (level.deserialized) {
+            val diskValues = serializerManager.dataDeserializeStream(
+              blockId,
+              diskBytes.toInputStream(dispose = true))(info.classTag)
+            val classTag = info.classTag.asInstanceOf[ClassTag[Any]]
+            val putSucceeded=memoryStore.putIteratorAsValues(blockId, diskValues, classTag)
+            putSucceeded match {
+              case  Left(v)=>false
+              case Right(b)=>true
+            }
+            //maybeCacheDiskValuesInMemory(info, blockId, level, diskValues)
+          } else {
+            //val stream = maybeCacheDiskBytesInMemory(info, blockId, level, diskBytes)
+            val allocator = level.memoryMode match {
+              case MemoryMode.ON_HEAP => ByteBuffer.allocate _
+              case MemoryMode.OFF_HEAP => Platform.allocateDirectBuffer _
+            }
+            val putSucceeded = memoryStore.putBytes(blockId, diskBytes.size, level.memoryMode, () => {
+              diskBytes.copy(allocator)
+            })
+            if(putSucceeded) diskBytes.dispose()
+            putSucceeded
+          }
+        }
+        else false
     }
   }
 

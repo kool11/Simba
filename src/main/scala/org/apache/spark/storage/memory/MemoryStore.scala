@@ -18,6 +18,8 @@
 package org.apache.spark.storage.memory
 
 import java.nio.ByteBuffer
+import java.util
+import java.util.Comparator
 
 import org.apache.spark.internal.Logging
 import org.apache.spark.memory.{MemoryManager, MemoryMode}
@@ -28,12 +30,11 @@ import org.apache.spark.unsafe.Platform
 import org.apache.spark.util.collection.SizeTrackingVector
 import org.apache.spark.util.io.{ChunkedByteBuffer, ChunkedByteBufferOutputStream}
 import org.apache.spark.util.{SizeEstimator, Utils}
-import org.apache.spark.{SparkConf, TaskContext}
+import org.apache.spark.{SparkConf, SparkEnv, TaskContext}
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
-//import com.mbp.spatialPQ
 
 case class Point(x:Double,y:Double){
   override def equals(that: Any): Boolean = {
@@ -141,82 +142,101 @@ case class knnSpatialPQ[A,B]()
     distArray.put()
   }
 }*/
-case class knnSpatialPQ2[A,B]()
+case class knnSpatialPQ2[A,B](val k_close:Int)
   extends mutable.LinkedHashMap[A, B] with Logging{
-  import java.util.{LinkedList => JLinkedList}
-  val neighbours = new mutable.LinkedHashMap[A,JLinkedList[(A,Double)]]
+  val neighbours = new mutable.LinkedHashMap[A,util.TreeSet[(A,Double)]]
+
   var distArray: mutable.LinkedHashMap[A,MBR] = new mutable.LinkedHashMap[A,MBR]()
-  private def addNew(neighbour:JLinkedList[(A,Double)],x:A,dist:Double)={
-    if(neighbour.size()==0){
-      neighbour.add((x,dist))
-    }else{
-      var i=0
-      while(i<neighbour.size()&&neighbour.get(i)._2>dist){
-        i = i+1
-      }
-      neighbour.add(i,(x,dist))
-    }
-    if(neighbour.size()>1){
-      neighbour.pollFirst()
-    }
+  var usePrefetch = false
+  var useSpatial=false
+
+  private def addNew(neighbour:util.TreeSet[(A,Double)],x:A,dist:Double,num:Int)={
+    if(neighbour.size()>num&&dist<neighbour.last()._2)
+      neighbour.remove(neighbour.last())
+    neighbour.add((x,dist))
   }
+  //Todo: top k close
   override def put(key: A, value:B ): Option[B] = {
-
-    val newMBR = distArray.get(key)
-    if(newMBR.isDefined){
-      logInfo("distArray contain this block....hahaha")
-      //TODO:get the mbr of key Block
-      val neighbour =  new JLinkedList[(A,Double)]
-      //candidate in memory
-      neighbours.foreach(x =>{
-
-        //TODO:get the mbr of rid Block
-        val oldMBR = distArray.get(x._1)
-        if(oldMBR.isDefined){
-          val dist= newMBR.get.minDist(oldMBR.get)
-          addNew(neighbour,x._1,dist)
-          if(neighbours.get(x._1).isDefined){
-            addNew(neighbours(x._1),key,dist)
-          }
+    if(useSpatial||usePrefetch){
+      val num = Math.min(distArray.size,k_close)
+      var neighbour = new util.TreeSet[(A, Double)](new Comparator[(A,Double)] {
+        override def compare(o1: (A, Double), o2: (A, Double)): Int = {
+          val re=if(o1._2>o2._2)  1
+          else if(o1._2==o2._2)  0
+          else -1
+          re
         }
       })
-      neighbours+=(key->neighbour)
+      if(!neighbours.contains(key)) { //first time to arrive
+        val newMBR = distArray.get(key)
+        if (newMBR.isDefined) {
+          logInfo("distArray contain this block....hahaha")
+          //TODO:get the mbr of key Block
+
+          //blockId which has mbr and exist in this node
+          neighbours.foreach(x => {
+            //foreach the mbr of arrived Block
+            val oldMBR = distArray.get(x._1)
+            if (oldMBR.isDefined) {
+              val dist = newMBR.get.minDist(oldMBR.get)
+              addNew(neighbour, x._1, dist, num)
+
+              if (neighbours.get(x._1).isDefined)
+                addNew(neighbours(x._1), key, dist, num)
+            }
+          })
+          neighbours += (key -> neighbour)
+        }
+      }else {
+        neighbours.get(key) match{
+          case Some(arr) => neighbour = arr
+        }
+      }
+      //move the close block to the link's end
       val iter = neighbour.iterator()
       while(iter.hasNext){
-        moveToTail(iter.next())
+        moveToTail(iter.next()._1)
       }
     }
-
     super.put(key,value)
   }
-  private def moveToTail(key:(A,Double))={
-    if(key.isInstanceOf[(A,Double)]){
-      super.remove(key._1) match {
-        case Some(v) =>super.put(key._1,v)
-        //case _=>super.put(key._1,_)
-      }
-    }
 
+  private def moveToTail(key:A):Unit={
+    if(usePrefetch) {
+      if (super.contains(key))
+        super.remove(key) match {
+          case Some(v) => super.put(key, v)
+        }
+      else{
+        SparkEnv.get.blockManager.prefetch(key.asInstanceOf[BlockId])
+      }
+    }else{
+      if(super.contains(key))
+        super.remove(key) match {
+          case Some(v) =>super.put(key,v)
+        }
+    }
   }
+
+  //get block from memory
   def getSpatial(key: A):Option[B]={
-
-    if(neighbours.get(key).isDefined){
+    if(useSpatial&&neighbours.get(key).isDefined){
       logInfo("neighbour contain this block....hahaha")
-      val iter = neighbours(key).iterator()
-      while(iter.hasNext){
-        moveToTail(iter.next())
-      }
+      val iter=neighbours(key).iterator()
+        while(iter.hasNext)
+          moveToTail(iter.next()._1)
+
     }
-
     super.get(key)
-
   }
+
   //remove all blockId value in LinkedHashMap or just remove the blockId key
   override def remove(key:A):Option[B]={
-    neighbours.remove(key.asInstanceOf[A])
-    neighbours.foreach(li=>li._2.remove(key))
+    //neighbours.remove(key.asInstanceOf[A])
+    //neighbours.foreach(li=>li._2.remove(key))
     super.remove(key.asInstanceOf[A])
   }
+
   override def clear(): Unit ={
     neighbours.clear()
     super.clear()
@@ -233,13 +253,12 @@ private[spark] class MemoryStore(
                  blockInfoManager: BlockInfoManager,
                  serializerManager: SerializerManager,
                  memoryManager: MemoryManager,
-                 blockEvictionHandler: BlockEvictionHandler)
+                 val blockEvictionHandler: BlockEvictionHandler)
   extends Logging {
 
   // TODO: load the thres from index or config
-  val distArray = new mutable.LinkedHashMap[BlockId,MBR]()
-  //val distArray = SimbaSession.distanceArray
-  private val entries= new knnSpatialPQ2[BlockId, MemoryEntry[_]]()
+  private val k_close=conf.getInt("spark.storage.k", 1)
+  private val entries= new knnSpatialPQ2[BlockId, MemoryEntry[_]](k_close)
 
   def add_dist(block:BlockId,mbr:MBR): Unit ={
     entries.add_dist(block,mbr)
