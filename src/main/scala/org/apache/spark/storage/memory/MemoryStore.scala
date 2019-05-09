@@ -148,7 +148,7 @@ case class knnSpatialPQ2[A,B](val k_close:Int)
 
   var distArray: mutable.LinkedHashMap[A,MBR] = new mutable.LinkedHashMap[A,MBR]()
   var usePrefetch = false
-  var useSpatial=false
+  var useSpatial=true
 
   private def addNew(neighbour:util.TreeSet[(A,Double)],x:A,dist:Double,num:Int)={
     if(neighbour.size()>num&&dist<neighbour.last()._2)
@@ -157,7 +157,7 @@ case class knnSpatialPQ2[A,B](val k_close:Int)
   }
   //Todo: top k close
   override def put(key: A, value:B ): Option[B] = {
-    if(useSpatial||usePrefetch){
+    if(distArray.contains(key)&&(useSpatial||usePrefetch)){
       val num = Math.min(distArray.size,k_close)
       var neighbour = new util.TreeSet[(A, Double)](new Comparator[(A,Double)] {
         override def compare(o1: (A, Double), o2: (A, Double)): Int = {
@@ -257,7 +257,7 @@ private[spark] class MemoryStore(
   extends Logging {
 
   // TODO: load the thres from index or config
-  private val k_close=conf.getInt("spark.storage.k", 1)
+  private val k_close=conf.getInt("spark.storage.k", 3)
   private val entries= new knnSpatialPQ2[BlockId, MemoryEntry[_]](k_close)
 
   def add_dist(block:BlockId,mbr:MBR): Unit ={

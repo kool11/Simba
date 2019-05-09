@@ -28,7 +28,7 @@ import org.apache.spark.sql.internal.StaticSQLConf._
 import org.apache.spark.sql.simba.index.IndexType
 import org.apache.spark.sql.simba.spatial.MBR
 import org.apache.spark.sql.{Encoder, SparkSession, DataFrame => SQLDataFrame, Dataset => SQLDataset}
-import org.apache.spark.storage.BlockId
+import org.apache.spark.storage.{BlockId, RDDBlockId}
 import org.apache.spark.util.Utils
 import org.apache.spark.{SparkConf, SparkContext, SparkEnv}
 
@@ -205,8 +205,8 @@ object SimbaSession {
 
   //val distanceArray:mutable.LinkedHashMap[BlockId,MBR]=new mutable.LinkedHashMap[BlockId,MBR]
 
-  def addDistanceArray(block:BlockId,mbr:MBR):Unit={
-    SparkEnv.get.blockManager.memoryStore.add_dist(block,mbr)
+  def addDistanceArray(map:List[(RDDBlockId,MBR)]):Unit={
+    SparkEnv.get.blockManager.memoryStore.add_dist(map)
   }
 
   def builder(): Builder = new Builder

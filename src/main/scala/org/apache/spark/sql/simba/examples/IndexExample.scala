@@ -17,8 +17,6 @@ object IndexExample {
       .config("simba.index.partitions", "64")
       .getOrCreate()
 
-
-
     //buildIndex(simbaSession)
     useIndex1(simbaSession)
     //useIndex2(simbaSession)
@@ -41,18 +39,22 @@ object IndexExample {
   private def useIndex1(simba: SimbaSession): Unit = {
     import simba.implicits._
     import simba.simbaImplicits._
-    val datapoints = Seq(PointData(1.0, 1.0, 3.0, "1"),  PointData(2.0, 2.0, 3.0, "2"), PointData(2.0, 2.0, 3.0, "3"),
-      PointData(2.0, 2.0, 3.0, "4"),PointData(3.0, 3.0, 3.0, "5"),PointData(4.0, 4.0, 3.0, "6")).toDF()
+    //val datapoints = Seq(PointData(1.0, 1.0, 3.0, "1"),  PointData(2.0, 2.0, 3.0, "2"), PointData(2.0, 2.0, 3.0, "3"),
+    //  PointData(2.0, 2.0, 3.0, "4"),PointData(3.0, 3.0, 3.0, "5"),PointData(4.0, 4.0, 3.0, "6")).toDF()
 
-    datapoints.createOrReplaceTempView("b")
+    val datapoint = simba.sparkContext.textFile("/home/ruanke/noramal.csv").map(f=>{
+      val line=f.split(",").toList
+      PointData(line(1).toDouble, line(2).toDouble,line(3).toDouble, line(0) )
+    }).toDS()
+    datapoint.createOrReplaceTempView("b")
 
     simba.indexTable("b", RTreeType, "QuadTreeForData",  Array("x", "y") )
 
     simba.showIndex("b")
 
     val res = simba.sql("SELECT * FROM b")
-    res.knn(Array("x", "y"),Array(1.0, 1.0),4).show(4)
-    res.knn(Array("x", "y"),Array(2.0, 1.0),1).show(4)
+    res.knn(Array("x", "y"),Array(1.0, 1.0),100).show(10)
+    //res.knn(Array("x", "y"),Array(2.0, 1.0),1).show(4)
 
   }
 
