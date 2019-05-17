@@ -36,11 +36,11 @@ import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 
-case class Point(x:Double,y:Double){
+case class Point(x: Double, y: Double) {
   override def equals(that: Any): Boolean = {
     that match {
-      case p:Point=> (p.x==x)&&(p.y==y)
-      case _=>false
+      case p: Point => (p.x == x) && (p.y == y)
+      case _ => false
     }
   }
 }
@@ -142,136 +142,173 @@ case class knnSpatialPQ[A,B]()
     distArray.put()
   }
 }*/
-case class knnSpatialPQ2[A,B](val k_close:Int)
-  extends mutable.LinkedHashMap[A, B] with Logging{
-  val neighbours = new mutable.LinkedHashMap[A,util.TreeSet[(A,Double)]]
+class knnSpatialPQ2[A, B](val k_close: Int)
+  extends mutable.LinkedHashMap[A, B] with Logging {
+  private val neighbours = new mutable.LinkedHashMap[A, util.TreeSet[(A, Double)]]
+  private val haveStored = new mutable.HashSet[A]()
+  private var distArray: mutable.LinkedHashMap[A, MBR] = new mutable.LinkedHashMap[A, MBR]()
+  private var usePrefetch = false
+  private var useSpatial = true
 
-  var distArray: mutable.LinkedHashMap[A,MBR] = new mutable.LinkedHashMap[A,MBR]()
-  var usePrefetch = false
-  var useSpatial=true
-
-  private def addNew(neighbour:util.TreeSet[(A,Double)],x:A,dist:Double,num:Int)={
-    if(neighbour.size()>num&&dist<neighbour.last()._2)
+  private def addNew(neighbour: util.TreeSet[(A, Double)], x: A, dist: Double, num: Int) = {
+    if (neighbour.size() > num && dist < neighbour.last()._2)
       neighbour.remove(neighbour.last())
-    neighbour.add((x,dist))
+    neighbour.add((x, dist))
   }
-  //Todo: top k close
-  override def put(key: A, value:B ): Option[B] = {
-    if(distArray.contains(key)&&(useSpatial||usePrefetch)){
-      val num = Math.min(distArray.size,k_close)
-      var neighbour = new util.TreeSet[(A, Double)](new Comparator[(A,Double)] {
-        override def compare(o1: (A, Double), o2: (A, Double)): Int = {
-          val re=if(o1._2>o2._2)  1
-          else if(o1._2==o2._2)  0
-          else -1
-          re
-        }
-      })
-      if(!neighbours.contains(key)) { //first time to arrive
-        val newMBR = distArray.get(key)
-        if (newMBR.isDefined) {
-          logInfo("distArray contain this block....hahaha")
-          //TODO:get the mbr of key Block
 
-          //blockId which has mbr and exist in this node
-          neighbours.foreach(x => {
-            //foreach the mbr of arrived Block
-            val oldMBR = distArray.get(x._1)
-            if (oldMBR.isDefined) {
-              val dist = newMBR.get.minDist(oldMBR.get)
-              addNew(neighbour, x._1, dist, num)
+  def checkFirstTimeStoreInMemory(key:A)={
+    if(haveStored.contains(key)) true
+    else false
+  }
 
-              if (neighbours.get(x._1).isDefined)
-                addNew(neighbours(x._1), key, dist, num)
+  // TODO : check distArray need sync or not
+  def updateNeighbour(key: A):Boolean = {
+    if (!haveStored.contains(key)&&distArray.contains(key) && (useSpatial || usePrefetch)){
+      neighbours.synchronized {
+        val num = Math.min(distArray.size, k_close)
+
+        val (neighbour,flag) = if (!neighbours.contains(key)) { //first time to arrive
+          val neighbour2 = new util.TreeSet[(A, Double)](new Comparator[(A, Double)] {
+            override def compare(o1: (A, Double), o2: (A, Double)): Int = {
+              val re = if (o1._2 > o2._2) 1
+              else if (o1._2 == o2._2) 0
+              else -1
+              re
             }
           })
-          neighbours += (key -> neighbour)
+          val newMBR = distArray.get(key)
+          if (newMBR.isDefined) {
+            logInfo("distArray contain this block....hahaha")
+            //TODO:get the mbr of key Block
+
+            //blockId which has mbr and exist in this node
+            neighbours.foreach(x => {
+              //foreach the mbr of arrived Block
+              val oldMBR = distArray.get(x._1)
+              if (oldMBR.isDefined) {
+                val dist = newMBR.get.minDist(oldMBR.get)
+                addNew(neighbour2, x._1, dist, num)
+
+                if (neighbours.get(x._1).isDefined)
+                  addNew(neighbours(x._1), key, dist, num)
+              }
+            })
+            neighbours += (key -> neighbour2)
+          }
+          (neighbour2,true)
+        } else {
+          (neighbours.get(key),false)
         }
-      }else {
-        neighbours.get(key) match{
-          case Some(arr) => neighbour = arr
-        }
+        flag
       }
-      //move the close block to the link's end
-      val iter = neighbour.iterator()
-      while(iter.hasNext){
-        moveToTail(iter.next()._1)
-      }
+    }else{
+      false
     }
-    super.put(key,value)
+
   }
 
-  private def moveToTail(key:A):Unit={
-    if(usePrefetch) {
+  def putSpatial(key: A, value: B): Option[B] = {
+    //move the close block to the link's end
+    if(neighbours.contains(key)&&haveStored.contains(key)){
+      val neighbour = neighbours.get(key)
+      neighbour match {
+        case Some(map)=>val iter = map.iterator()
+          while (iter.hasNext) {
+            moveToTail(iter.next()._1)
+          }
+      }
+    }else{
+      haveStored.add(key)
+    }
+    super.put(key, value)
+  }
+
+  private def moveToTail(key: A): Unit = {
+    if (usePrefetch) {
       if (super.contains(key))
         super.remove(key) match {
           case Some(v) => super.put(key, v)
         }
-      else{
+      else {
         SparkEnv.get.blockManager.prefetch(key.asInstanceOf[BlockId])
       }
-    }else{
-      if(super.contains(key))
+    } else {
+      if (super.contains(key))
         super.remove(key) match {
-          case Some(v) =>super.put(key,v)
+          case Some(v) => super.put(key, v)
         }
     }
   }
 
   //get block from memory
-  def getSpatial(key: A):Option[B]={
-    if(useSpatial&&neighbours.get(key).isDefined){
+  def getSpatial(key: A): Option[B] = {
+    if (useSpatial && neighbours.get(key).isDefined) {
       logInfo("neighbour contain this block....hahaha")
-      val iter=neighbours(key).iterator()
-        while(iter.hasNext)
+      neighbours.synchronized {
+        val iter = neighbours(key).iterator()
+        while (iter.hasNext)
           moveToTail(iter.next()._1)
-
+      }
     }
     super.get(key)
   }
 
   //remove all blockId value in LinkedHashMap or just remove the blockId key
-  override def remove(key:A):Option[B]={
-    //neighbours.remove(key.asInstanceOf[A])
-    //neighbours.foreach(li=>li._2.remove(key))
+  override def remove(key: A): Option[B] = {
     super.remove(key.asInstanceOf[A])
   }
 
-  override def clear(): Unit ={
+  override def clear(): Unit = {
     neighbours.clear()
     super.clear()
   }
 
-  def add_dist(block:A,mbr:MBR): Unit ={
-    distArray.put(block,mbr)
+  def add_dist(block: A, mbr: MBR): Unit = {
+    distArray.put(block, mbr)
   }
-
 }
 
 private[spark] class MemoryStore(
-                 conf: SparkConf,
-                 blockInfoManager: BlockInfoManager,
-                 serializerManager: SerializerManager,
-                 memoryManager: MemoryManager,
-                 val blockEvictionHandler: BlockEvictionHandler)
+                                  conf: SparkConf,
+                                  blockInfoManager: BlockInfoManager,
+                                  serializerManager: SerializerManager,
+                                  memoryManager: MemoryManager,
+                                  val blockEvictionHandler: BlockEvictionHandler)
   extends Logging {
 
   // TODO: load the thres from index or config
-  private val k_close=conf.getInt("spark.storage.k", 3)
-  private val entries= new knnSpatialPQ2[BlockId, MemoryEntry[_]](k_close)
+  private val k_close = conf.getInt("spark.storage.k", 3)
+  private val entries = new knnSpatialPQ2[BlockId, MemoryEntry[_]](k_close)
+  //private val persistRDD = new mutable.LinkedHashMap[BlockId,Boolean]()
 
-  def add_dist(block:BlockId,mbr:MBR): Unit ={
-    entries.add_dist(block,mbr)
-  }
-  def add_dist(map:List[(BlockId,MBR)]):Unit={
-    map.foreach(x=>add_dist(x._1,x._2))
+  private def updateEntryNeighbour(blockId: BlockId) = {
+    logInfo("update the entry neighbour list with block:"+blockId.name)
+    entries.synchronized{
+      entries.updateNeighbour(blockId)
+    }
+    /*if(!persistRDD.contains(blockId)) {
+      val re = entries.updateNeighbour(blockId)
+      if(re) persistRDD.put(blockId,false)
+      true
+    }else{
+      false
+    }*/
   }
 
-  //private val entries = new knnSpatialPQ(this)
-  // TODO: implement this
+  def add_dist(block: BlockId, mbr: MBR): Unit = {
+    entries.synchronized{
+      entries.add_dist(block, mbr)
+    }
+  }
+
+  def add_dist(map: List[(BlockId, MBR)]): Unit = {
+    map.foreach(x => add_dist(x._1, x._2))
+  }
+
   private def getRddId(blockId: BlockId): Option[Int] = {
     blockId.asRDDId.map(_.rddId)
   }
+
   private[spark] def evictBlocksToFreeSpace(
                                              blockId: Option[BlockId],
                                              space: Long,
@@ -281,8 +318,12 @@ private[spark] class MemoryStore(
       var freedMemory = 0L
       val rddToAdd = blockId.flatMap(getRddId)
       val selectedBlocks = new ArrayBuffer[BlockId]
+
       def blockIsEvictable(blockId: BlockId, entry: MemoryEntry[_]): Boolean = {
-        entry.memoryMode == memoryMode && (rddToAdd.isEmpty || rddToAdd != getRddId(blockId))
+        if(entries.checkFirstTimeStoreInMemory(blockId))
+          entry.memoryMode == memoryMode
+        else
+          entry.memoryMode == memoryMode && (rddToAdd.isEmpty || rddToAdd != getRddId(blockId))
       }
       // This is synchronized to ensure that the set of entries is not changed
       // (because of getValue or getBytes) while traversing the iterator, as that
@@ -327,7 +368,9 @@ private[spark] class MemoryStore(
         logInfo(s"${selectedBlocks.size} blocks selected for dropping " +
           s"(${Utils.bytesToString(freedMemory)} bytes)")
         for (blockId <- selectedBlocks) {
-          val entry = entries.synchronized { entries.get(blockId) }
+          val entry = entries.synchronized {
+            entries.get(blockId)
+          }
           // This should never be null as only one task should be dropping
           // blocks and removing entries. However the check is still here for
           // future safety.
@@ -362,15 +405,18 @@ private[spark] class MemoryStore(
                              blockId: BlockId,
                              size: Long,
                              memoryMode: MemoryMode,
-                             _bytes: () => ChunkedByteBuffer): Boolean = {
+                             _bytes: () => ChunkedByteBuffer,
+                             prefetch: Boolean = false): Boolean = {
     require(!contains(blockId), s"Block $blockId is already present in the MemoryStore")
+    updateEntryNeighbour(blockId)
     if (memoryManager.acquireStorageMemory(blockId, size, memoryMode)) {
       // We acquired enough memory for the block, so go ahead and put it
       val bytes = _bytes()
       assert(bytes.size == size)
       val entry = new SerializedMemoryEntry[T](bytes, memoryMode, implicitly[ClassTag[T]])
       entries.synchronized {
-        entries.put(blockId, entry)
+        if(prefetch) entries.put(blockId, entry)
+        else entries.putSpatial(blockId,entry)
       }
       logInfo("Block %s stored as bytes in memory (estimated size %s, free %s)".format(
         blockId, Utils.bytesToString(size), Utils.bytesToString(maxMemory - blocksMemoryUsed)))
@@ -399,10 +445,12 @@ private[spark] class MemoryStore(
   private[storage] def putIteratorAsValues[T](
                                                blockId: BlockId,
                                                values: Iterator[T],
-                                               classTag: ClassTag[T]): Either[PartiallyUnrolledIterator[T], Long] = {
+                                               classTag: ClassTag[T],
+                                               prefetch: Boolean = false): Either[PartiallyUnrolledIterator[T], Long] = {
 
     require(!contains(blockId), s"Block $blockId is already present in the MemoryStore")
 
+    updateEntryNeighbour(blockId)
     // Number of elements unrolled so far
     var elementsUnrolled = 0
     // Whether there is still enough memory for us to continue unrolling this block
@@ -458,6 +506,7 @@ private[spark] class MemoryStore(
       val entry =
         new DeserializedMemoryEntry[T](arrayValues, SizeEstimator.estimate(arrayValues), classTag)
       val size = entry.size
+
       def transferUnrollToStorage(amount: Long): Unit = {
         // Synchronize so that transfer is atomic
         memoryManager.synchronized {
@@ -466,6 +515,7 @@ private[spark] class MemoryStore(
           assert(success, "transferring unroll memory to storage memory failed")
         }
       }
+
       // Acquire storage memory if necessary to store this block in memory.
       val enoughStorageMemory = {
         if (unrollMemoryUsedByThisBlock <= size) {
@@ -487,7 +537,8 @@ private[spark] class MemoryStore(
       }
       if (enoughStorageMemory) {
         entries.synchronized {
-          entries.put(blockId, entry)
+          if(prefetch) entries.put(blockId, entry)
+          else entries.putSpatial(blockId,entry)
         }
         logInfo("Block %s stored as values in memory (estimated size %s, free %s)".format(
           blockId, Utils.bytesToString(size), Utils.bytesToString(maxMemory - blocksMemoryUsed)))
@@ -534,125 +585,131 @@ private[spark] class MemoryStore(
                                               blockId: BlockId,
                                               values: Iterator[T],
                                               classTag: ClassTag[T],
-                                              memoryMode: MemoryMode): Either[PartiallySerializedBlock[T], Long] = {
+                                              memoryMode: MemoryMode,
+                                              prefetch: Boolean = false): Either[PartiallySerializedBlock[T], Long] = {
 
-  require(!contains(blockId), s"Block $blockId is already present in the MemoryStore")
+    require(!contains(blockId), s"Block $blockId is already present in the MemoryStore")
 
-  val allocator = memoryMode match {
-    case MemoryMode.ON_HEAP => ByteBuffer.allocate _
-    case MemoryMode.OFF_HEAP => Platform.allocateDirectBuffer _
-  }
+    updateEntryNeighbour(blockId)
+    val allocator = memoryMode match {
+      case MemoryMode.ON_HEAP => ByteBuffer.allocate _
+      case MemoryMode.OFF_HEAP => Platform.allocateDirectBuffer _
+    }
 
-  // Whether there is still enough memory for us to continue unrolling this block
-  var keepUnrolling = true
-  // Number of elements unrolled so far
-  var elementsUnrolled = 0L
-  // How often to check whether we need to request more memory
-  //val memoryCheckPeriod = conf.get(UNROLL_MEMORY_CHECK_PERIOD)
-  //  // Memory torequest as a multiple of current bbos size
-  //val memoryGrowthFactor = conf.get(UNROLL_MEMORY_GROWTH_FACTOR)
-  // Initial per-task memory to request for unrolling blocks (bytes).
-  val initialMemoryThreshold = unrollMemoryThreshold
-  // Keep track of unroll memory used by this particular block / putIterator() operation
-  var unrollMemoryUsedByThisBlock = 0L
-  // Underlying buffer for unrolling the block
-  val redirectableStream = new RedirectableOutputStream
-  val chunkSize = if (initialMemoryThreshold > Int.MaxValue) {
-    logWarning(s"Initial memory threshold of ${Utils.bytesToString(initialMemoryThreshold)} " +
-      s"is too large to be set as chunk size. Chunk size has been capped to " +
-      s"${Utils.bytesToString(Int.MaxValue)}")
-    Int.MaxValue
-  } else {
-    initialMemoryThreshold.toInt
-  }
-  val bbos = new ChunkedByteBufferOutputStream(chunkSize, allocator)
-  redirectableStream.setOutputStream(bbos)
-  val serializationStream: SerializationStream = {
-    val autoPick = !blockId.isInstanceOf[StreamBlockId]
-    val ser = serializerManager.getSerializer(classTag, autoPick).newInstance()
-    ser.serializeStream(serializerManager.wrapStream(blockId, redirectableStream))
-  }
+    // Whether there is still enough memory for us to continue unrolling this block
+    var keepUnrolling = true
+    // Number of elements unrolled so far
+    var elementsUnrolled = 0L
 
-  // Request enough memory to begin unrolling
-  keepUnrolling = reserveUnrollMemoryForThisTask(blockId, initialMemoryThreshold, memoryMode)
+    // How often to check whether we need to request more memory
+    //val memoryCheckPeriod = conf.get(UNROLL_MEMORY_CHECK_PERIOD)
+    //  // Memory torequest as a multiple of current bbos size
+    //val memoryGrowthFactor = conf.get(UNROLL_MEMORY_GROWTH_FACTOR)
+    // Initial per-task memory to request for unrolling blocks (bytes).
+    val initialMemoryThreshold = unrollMemoryThreshold
+    // Keep track of unroll memory used by this particular block / putIterator() operation
+    var unrollMemoryUsedByThisBlock = 0L
+    // Underlying buffer for unrolling the block
+    val redirectableStream = new RedirectableOutputStream
+    val chunkSize = if (initialMemoryThreshold > Int.MaxValue) {
+      logWarning(s"Initial memory threshold of ${Utils.bytesToString(initialMemoryThreshold)} " +
+        s"is too large to be set as chunk size. Chunk size has been capped to " +
+        s"${Utils.bytesToString(Int.MaxValue)}")
+      Int.MaxValue
+    } else {
+      initialMemoryThreshold.toInt
+    }
+    val bbos = new ChunkedByteBufferOutputStream(chunkSize, allocator)
+    redirectableStream.setOutputStream(bbos)
+    val serializationStream: SerializationStream = {
+      val autoPick = !blockId.isInstanceOf[StreamBlockId]
+      val ser = serializerManager.getSerializer(classTag, autoPick).newInstance()
+      ser.serializeStream(serializerManager.wrapStream(blockId, redirectableStream))
+    }
 
-  if (!keepUnrolling) {
-    logWarning(s"Failed to reserve initial memory threshold of " +
-      s"${Utils.bytesToString(initialMemoryThreshold)} for computing block $blockId in memory.")
-  } else {
-    unrollMemoryUsedByThisBlock += initialMemoryThreshold
-  }
+    // Request enough memory to begin unrolling
+    keepUnrolling = reserveUnrollMemoryForThisTask(blockId, initialMemoryThreshold, memoryMode)
 
-  def reserveAdditionalMemoryIfNecessary(): Unit = {
-    if (bbos.size > unrollMemoryUsedByThisBlock) {
-      val amountToRequest = (bbos.size  - unrollMemoryUsedByThisBlock).toLong
-      keepUnrolling = reserveUnrollMemoryForThisTask(blockId, amountToRequest, memoryMode)
-      if (keepUnrolling) {
-        unrollMemoryUsedByThisBlock += amountToRequest
+    if (!keepUnrolling) {
+      logWarning(s"Failed to reserve initial memory threshold of " +
+        s"${Utils.bytesToString(initialMemoryThreshold)} for computing block $blockId in memory.")
+    } else {
+      unrollMemoryUsedByThisBlock += initialMemoryThreshold
+    }
+
+    def reserveAdditionalMemoryIfNecessary(): Unit = {
+      if (bbos.size > unrollMemoryUsedByThisBlock) {
+        val amountToRequest = (bbos.size - unrollMemoryUsedByThisBlock).toLong
+        keepUnrolling = reserveUnrollMemoryForThisTask(blockId, amountToRequest, memoryMode)
+        if (keepUnrolling) {
+          unrollMemoryUsedByThisBlock += amountToRequest
+        }
       }
     }
-  }
 
-  // Unroll this block safely, checking whether we have exceeded our threshold
-  while (values.hasNext && keepUnrolling) {
-    serializationStream.writeObject(values.next())(classTag)
-    elementsUnrolled += 1
-    reserveAdditionalMemoryIfNecessary()
-  }
+    // Unroll this block safely, checking whether we have exceeded our threshold
+    while (values.hasNext && keepUnrolling) {
+      serializationStream.writeObject(values.next())(classTag)
+      elementsUnrolled += 1
+      reserveAdditionalMemoryIfNecessary()
+    }
 
-  // Make sure that we have enough memory to store the block. By this point, it is possible that
-  // the block's actual memory usage has exceeded the unroll memory by a small amount, so we
-  // perform one final call to attempt to allocate additional memory if necessary.
-  if (keepUnrolling) {
-    serializationStream.close()
-    if (bbos.size > unrollMemoryUsedByThisBlock) {
-      val amountToRequest = bbos.size - unrollMemoryUsedByThisBlock
-      keepUnrolling = reserveUnrollMemoryForThisTask(blockId, amountToRequest, memoryMode)
-      if (keepUnrolling) {
-        unrollMemoryUsedByThisBlock += amountToRequest
+    // Make sure that we have enough memory to store the block. By this point, it is possible that
+    // the block's actual memory usage has exceeded the unroll memory by a small amount, so we
+    // perform one final call to attempt to allocate additional memory if necessary.
+    if (keepUnrolling) {
+      serializationStream.close()
+      if (bbos.size > unrollMemoryUsedByThisBlock) {
+        val amountToRequest = bbos.size - unrollMemoryUsedByThisBlock
+        keepUnrolling = reserveUnrollMemoryForThisTask(blockId, amountToRequest, memoryMode)
+        if (keepUnrolling) {
+          unrollMemoryUsedByThisBlock += amountToRequest
+        }
       }
     }
-  }
 
-  if (keepUnrolling) {
-    val entry = SerializedMemoryEntry[T](bbos.toChunkedByteBuffer, memoryMode, classTag)
-    // Synchronize so that transfer is atomic
-    memoryManager.synchronized {
-      releaseUnrollMemoryForThisTask(memoryMode, unrollMemoryUsedByThisBlock)
-      val success = memoryManager.acquireStorageMemory(blockId, entry.size, memoryMode)
-      assert(success, "transferring unroll memory to storage memory failed")
+    if (keepUnrolling) {
+      val entry = SerializedMemoryEntry[T](bbos.toChunkedByteBuffer, memoryMode, classTag)
+      // Synchronize so that transfer is atomic
+      memoryManager.synchronized {
+        releaseUnrollMemoryForThisTask(memoryMode, unrollMemoryUsedByThisBlock)
+        val success = memoryManager.acquireStorageMemory(blockId, entry.size, memoryMode)
+        assert(success, "transferring unroll memory to storage memory failed")
+      }
+      entries.synchronized {
+        if(prefetch) entries.put(blockId,entry)
+        else entries.putSpatial(blockId, entry)
+      }
+      logInfo("Block %s stored as bytes in memory (estimated size %s, free %s)".format(
+        blockId, Utils.bytesToString(entry.size),
+        Utils.bytesToString(maxMemory - blocksMemoryUsed)))
+      Right(entry.size)
+    } else {
+      // We ran out of space while unrolling the values for this block
+      logUnrollFailureMessage(blockId, bbos.size)
+      Left(
+        new PartiallySerializedBlock(
+          this,
+          serializerManager,
+          blockId,
+          serializationStream,
+          redirectableStream,
+          unrollMemoryUsedByThisBlock,
+          memoryMode,
+          bbos,
+          values,
+          classTag))
     }
-    entries.synchronized {
-      entries.put(blockId, entry)
-    }
-    logInfo("Block %s stored as bytes in memory (estimated size %s, free %s)".format(
-      blockId, Utils.bytesToString(entry.size),
-      Utils.bytesToString(maxMemory - blocksMemoryUsed)))
-    Right(entry.size)
-  } else {
-    // We ran out of space while unrolling the values for this block
-    logUnrollFailureMessage(blockId, bbos.size)
-    Left(
-      new PartiallySerializedBlock(
-        this,
-        serializerManager,
-        blockId,
-        serializationStream,
-        redirectableStream,
-        unrollMemoryUsedByThisBlock,
-        memoryMode,
-        bbos,
-        values,
-        classTag))
   }
-}
 
   def getBytes(blockId: BlockId): Option[ChunkedByteBuffer] = {
-    val entry = entries.synchronized { entries.getSpatial(blockId) }
+    val entry = entries.synchronized {
+      entries.getSpatial(blockId)
+    }
     entry match {
       case None => None
-      case Some(ent)=>
-        ent match{
+      case Some(ent) =>
+        ent match {
           case e: DeserializedMemoryEntry[_] =>
             throw new IllegalArgumentException("should only call getBytes on serialized blocks")
           case SerializedMemoryEntry(bytes, _, _) => Some(bytes)
@@ -661,17 +718,19 @@ private[spark] class MemoryStore(
   }
 
   def getValues(blockId: BlockId): Option[Iterator[_]] = {
-    val entry = entries.synchronized { entries.getSpatial(blockId) }
+    val entry = entries.synchronized {
+      entries.getSpatial(blockId)
+    }
     entry match {
       case None => None
-      case Some(ent)=>
+      case Some(ent) =>
         ent match {
           case e: SerializedMemoryEntry[_] =>
             throw new IllegalArgumentException("should only call getValues on deserialized blocks")
           case DeserializedMemoryEntry(values, _, _) =>
             val x = Some(values)
             x.map(_.iterator)
-      }
+        }
     }
   }
 
@@ -702,7 +761,6 @@ private[spark] class MemoryStore(
     memoryManager.releaseAllStorageMemory()
     logInfo("MemoryStore cleared")
   }
-
 
 
   // A mapping from taskAttemptId to amount of memory used for unrolling a block (in bytes)
@@ -742,13 +800,15 @@ private[spark] class MemoryStore(
 
   def getSize(blockId: BlockId): Long = {
     entries.synchronized {
-      val x=entries.get(blockId)
+      val x = entries.get(blockId)
       x.get.size
     }
   }
 
   def contains(blockId: BlockId): Boolean = {
-    entries.synchronized { entries.contains(blockId) }
+    entries.synchronized {
+      entries.contains(blockId)
+    }
   }
 
   private def currentTaskAttemptId(): Long = {
@@ -840,7 +900,7 @@ private[spark] class MemoryStore(
   /**
     * Log a warning for failing to unroll a block.
     *
-    * @param blockId ID of the block we are trying to unroll.
+    * @param blockId         ID of the block we are trying to unroll.
     * @param finalVectorSize Final size of the vector before unrolling failed.
     */
   private def logUnrollFailureMessage(blockId: BlockId, finalVectorSize: Long): Unit = {

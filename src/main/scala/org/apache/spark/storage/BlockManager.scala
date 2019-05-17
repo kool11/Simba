@@ -10,7 +10,6 @@ import scala.concurrent.duration._
 import scala.reflect.ClassTag
 import scala.util.Random
 import scala.util.control.NonFatal
-
 import org.apache.spark._
 import org.apache.spark.executor.{DataReadMethod, ShuffleWriteMetrics}
 import org.apache.spark.internal.Logging
@@ -544,7 +543,7 @@ private[spark] class BlockManager(
               blockId,
               diskBytes.toInputStream(dispose = true))(info.classTag)
             val classTag = info.classTag.asInstanceOf[ClassTag[Any]]
-            val putSucceeded=memoryStore.putIteratorAsValues(blockId, diskValues, classTag)
+            val putSucceeded=memoryStore.putIteratorAsValues(blockId, diskValues, classTag,true)
             putSucceeded match {
               case  Left(v)=>false
               case Right(b)=>true
@@ -558,7 +557,7 @@ private[spark] class BlockManager(
             }
             val putSucceeded = memoryStore.putBytes(blockId, diskBytes.size, level.memoryMode, () => {
               diskBytes.copy(allocator)
-            })
+            },true)
             if(putSucceeded) diskBytes.dispose()
             putSucceeded
           }
