@@ -1021,7 +1021,7 @@ private[spark] class BlockManager(
         // Put it in memory first, even if it also has useDisk set to true;
         // We will drop it to disk later if the memory store can't hold it.
         if (level.deserialized) {
-          memoryStore.putIteratorAsValues(blockId, iterator(), classTag) match {
+          memoryStore.putIteratorAsValues(blockId, iterator(), classTag,false) match {
             case Right(s) =>
               size = s
             case Left(iter) =>
@@ -1037,7 +1037,7 @@ private[spark] class BlockManager(
               }
           }
         } else { // !level.deserialized
-          memoryStore.putIteratorAsBytes(blockId, iterator(), classTag, level.memoryMode) match {
+          memoryStore.putIteratorAsBytes(blockId, iterator(), classTag, level.memoryMode,false) match {
             case Right(s) =>
               size = s
             case Left(partiallySerializedValues) =>
@@ -1129,7 +1129,7 @@ private[spark] class BlockManager(
             // cannot put it into MemoryStore, copyForMemory should not be created. That's why
             // this action is put into a `() => ChunkedByteBuffer` and created lazily.
             diskBytes.copy(allocator)
-          })
+          },false)
           if (putSucceeded) {
             diskBytes.dispose()
             Some(memoryStore.getBytes(blockId).get)
@@ -1165,7 +1165,7 @@ private[spark] class BlockManager(
           // Note: if we had a means to discard the disk iterator, we would do that here.
           memoryStore.getValues(blockId).get
         } else {
-          memoryStore.putIteratorAsValues(blockId, diskIterator, classTag) match {
+          memoryStore.putIteratorAsValues(blockId, diskIterator, classTag,false) match {
             case Left(iter) =>
               // The memory store put() failed, so it returned the iterator back to us:
               iter
