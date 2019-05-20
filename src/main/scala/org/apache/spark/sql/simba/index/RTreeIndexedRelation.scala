@@ -87,9 +87,9 @@ private[simba] case class RTreeIndexedRelation(output: Seq[Attribute], child: Sp
     val map:List[(RDDBlockId,MBR)]=mbr_bounds.map((mbr)=>{
       (RDDBlockId(repartition_rdd_id,mbr._2),mbr._1)
     }).toList
-    //val bc=SimbaSession.getActiveSession.get.sparkContext.broadcast(map)
-    //SimbaSession.getActiveSession.get.sparkContext.schedulerBackend.BlockIdMapToMBR(bc)
-    SimbaSession.addDistanceArray(map)
+    val bc=SimbaSession.getActiveSession.get.sparkContext.broadcast(map)
+    SimbaSession.getActiveSession.get.sparkContext.schedulerBackend.BlockIdMapToMBR(bc)
+    //SimbaSession.addDistanceArray(map)
     val partitionSize = indexed.mapPartitions(iter => iter.map(_.data.length)).collect()
 
     global_rtree = RTree(mbr_bounds.zip(partitionSize)

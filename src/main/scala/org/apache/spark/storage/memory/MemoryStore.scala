@@ -45,110 +45,13 @@ case class Point(x: Double, y: Double) {
   }
 }
 
-/*case class MBR(x:Double,y:Double){
-  def dist(other:MBR):Double={
-    (x-other.x)*(x-other.x)*(y-other.y)*(y-other.y)
-  }
-}
-
-case class knnSpatialPQ[A,B]()
-  extends mutable.LinkedHashMap[A, B] with Logging{
-  import java.util.{LinkedList => JLinkedList}
-
-  val neighbours = new mutable.LinkedHashMap[A,JLinkedList[(A,Double)]]
-
-  var distArray: mutable.LinkedHashMap[BlockId,MBR] = _
-
-  override def put(key: A, value:B ): Option[B] = {
-    key match {
-      case blockrddNew:org.apache.spark.storage.RDDBlockId=>
-        val newMBR = distArray.get(blockrddNew)
-        if(newMBR.isDefined){
-          //TODO:get the mbr of key Block
-          val neighbour =  new JLinkedList[(A,Double)]
-          //candidate in memory
-          neighbours.foreach(x =>{
-            x._1 match {
-              case rid:org.apache.spark.storage.RDDBlockId =>{
-                //TODO:get the mbr of rid Block
-                val oldMBR = distArray.get(rid)
-                if(oldMBR.isDefined){
-                  val dist= newMBR.get.minDist(oldMBR.get)
-
-                  if(neighbour.size()==0){
-                    neighbour.add((rid.asInstanceOf[A],dist))
-                  }else{
-                    var i=0
-                    while(i<neighbour.size()&&neighbour.get(i)._2>dist)
-                      i = i+1
-                    neighbour.add(i,(rid.asInstanceOf[A],dist))
-                  }
-                  if(neighbour.size()>3)
-                    neighbour.pollFirst()
-                }
-              }
-            }
-          })
-          neighbours+=(key->neighbour)
-          val iter = neighbour.iterator()
-          while(iter.hasNext){
-            moveToTail(iter.next())
-          }
-        }
-    }
-    super.put(key,value)
-  }
-
-  private def moveToTail(key:(A,Double))={
-    super.remove(key._1) match {
-      case Some(v) =>super.put(key._1,v)
-      //case _=>super.put(key._1,_)
-    }
-  }
-
-  def getSpatial(key: A):Option[B]={
-    key match {
-      case blockrdd:org.apache.spark.storage.RDDBlockId=> {
-        if(neighbours.get(blockrdd.asInstanceOf[A]).isDefined){
-          val iter = neighbours(blockrdd.asInstanceOf[A]).iterator()
-          while(iter.hasNext){
-            moveToTail(iter.next())
-          }
-        }
-        super.get(key)
-      }
-      case _=> super.get(key)
-    }
-  }
-  //remove all blockId value in LinkedHashMap or just remove the blockId key
-  override def remove(key:A):Option[B]={
-    key match{
-      case blockrdd:org.apache.spark.storage.RDDBlockId=>{
-        neighbours.remove(blockrdd.asInstanceOf[A])
-        neighbours.foreach(li=>li._2.remove(key))
-        super.remove(blockrdd.asInstanceOf[A])
-      }
-      case e => super.remove(e)
-    }
-  }
-
-  override def clear(): Unit ={
-    //locs.clear()
-    neighbours.clear()
-    super.clear()
-  }
-
-  def add_dist(): Unit ={
-    distArray.put()
-  }
-}*/
 class knnSpatialPQ2[A, B](val k_close: Int)
   extends mutable.LinkedHashMap[A, B] with Logging {
   private val neighbours = new mutable.LinkedHashMap[A, util.TreeSet[(A, Double)]]
-  private val haveStored = new mutable.HashSet[A]()
-  private var distArray: mutable.LinkedHashMap[A, MBR] = new mutable.LinkedHashMap[A, MBR]()
-  private var usePrefetch = false
-  private var useSpatial = true
+  //private val haveStored = new mutable.HashSet[A]() //remember the arriving rdd in dist list
+  private val distArray: mutable.LinkedHashMap[A, MBR] = new mutable.LinkedHashMap[A, MBR]()
+  private val usePrefetch = true
+  private val useSpatial = true
 
   private def addNew(neighbour: util.TreeSet[(A, Double)], x: A, dist: Double, num: Int) = {
     if (neighbour.size() > num && dist < neighbour.last()._2)
@@ -156,70 +59,69 @@ class knnSpatialPQ2[A, B](val k_close: Int)
     neighbour.add((x, dist))
   }
 
-  def checkFirstTimeStoreInMemory(key:A)={
-    if(haveStored.contains(key)) true
+  def checkFirstTimeStoreInMemory(key: A) = {
+    if (neighbours.contains(key)) true
     else false
   }
 
   // TODO : check distArray need sync or not
-  def updateNeighbour(key: A):Boolean = {
-    if (!haveStored.contains(key)&&distArray.contains(key) && (useSpatial || usePrefetch)){
-      neighbours.synchronized {
-        val num = Math.min(distArray.size, k_close)
-
-        val (neighbour,flag) = if (!neighbours.contains(key)) { //first time to arrive
-          val neighbour2 = new util.TreeSet[(A, Double)](new Comparator[(A, Double)] {
-            override def compare(o1: (A, Double), o2: (A, Double)): Int = {
-              val re = if (o1._2 > o2._2) 1
-              else if (o1._2 == o2._2) 0
-              else -1
-              re
-            }
-          })
-          val newMBR = distArray.get(key)
-          if (newMBR.isDefined) {
-            logInfo("distArray contain this block....hahaha")
-            //TODO:get the mbr of key Block
-
-            //blockId which has mbr and exist in this node
-            neighbours.foreach(x => {
-              //foreach the mbr of arrived Block
-              val oldMBR = distArray.get(x._1)
-              if (oldMBR.isDefined) {
-                val dist = newMBR.get.minDist(oldMBR.get)
-                addNew(neighbour2, x._1, dist, num)
-
-                if (neighbours.get(x._1).isDefined)
-                  addNew(neighbours(x._1), key, dist, num)
-              }
-            })
-            neighbours += (key -> neighbour2)
-          }
-          (neighbour2,true)
-        } else {
-          (neighbours.get(key),false)
+  def updateNeighbour(key: A): Boolean = {
+    if (!neighbours.contains(key) && distArray.contains(key) && (useSpatial || usePrefetch)) { //first time to arrive
+      val num = Math.min(distArray.size, k_close)
+      val neighbour2 = new util.TreeSet[(A, Double)](new Comparator[(A, Double)] {
+        override def compare(o1: (A, Double), o2: (A, Double)): Int = {
+          val re = if (o1._2 > o2._2) 1
+          else if (o1._2 == o2._2) 0
+          else -1
+          re
         }
-        flag
+      })
+      val newMBR = distArray.get(key)
+      if (newMBR.isDefined) {
+        logInfo("update Neighbour....hahaha with"+key)
+        //TODO:get the mbr of key Block
+
+        //blockId which has mbr and exist in this node
+        neighbours.foreach(x => {
+          //foreach the mbr of arrived Block
+          val oldMBR = distArray.get(x._1)
+          if (oldMBR.isDefined) {
+            val dist = newMBR.get.minDist(oldMBR.get)
+            addNew(neighbour2, x._1, dist, num)
+
+            if (neighbours.get(x._1).isDefined)
+              addNew(neighbours(x._1), key, dist, num)
+          }
+        })
+        neighbours += (key -> neighbour2)
       }
-    }else{
+      true
+    } else {
       false
     }
-
   }
+
 
   def putSpatial(key: A, value: B): Option[B] = {
     //move the close block to the link's end
-    if(neighbours.contains(key)&&haveStored.contains(key)){
+    logInfo("put Spatial method: " + key)
+    if (neighbours.contains(key)) {
+      // read from disk to use, second time to arrive
+
       val neighbour = neighbours.get(key)
       neighbour match {
-        case Some(map)=>val iter = map.iterator()
+        case Some(map) => val iter = map.iterator()
           while (iter.hasNext) {
             moveToTail(iter.next()._1)
           }
       }
-    }else{
-      haveStored.add(key)
     }
+    super.put(key, value) //store or first time to store in memory
+  }
+
+  // avoid cyclic prefetch
+  override def put(key: A, value: B) = {
+    //if (!haveStored.contains(key)) haveStored.add(key)
     super.put(key, value)
   }
 
@@ -282,8 +184,8 @@ private[spark] class MemoryStore(
   //private val persistRDD = new mutable.LinkedHashMap[BlockId,Boolean]()
 
   private def updateEntryNeighbour(blockId: BlockId) = {
-    logInfo("update the entry neighbour list with block:"+blockId.name)
-    entries.synchronized{
+    logInfo("update the entry neighbour list with block:" + blockId.name)
+    entries.synchronized {
       entries.updateNeighbour(blockId)
     }
     /*if(!persistRDD.contains(blockId)) {
@@ -296,7 +198,7 @@ private[spark] class MemoryStore(
   }
 
   def add_dist(block: BlockId, mbr: MBR): Unit = {
-    entries.synchronized{
+    entries.synchronized {
       entries.add_dist(block, mbr)
     }
   }
@@ -320,7 +222,7 @@ private[spark] class MemoryStore(
       val selectedBlocks = new ArrayBuffer[BlockId]
 
       def blockIsEvictable(blockId: BlockId, entry: MemoryEntry[_]): Boolean = {
-        if(entries.checkFirstTimeStoreInMemory(blockId))
+        if (entries.checkFirstTimeStoreInMemory(blockId))
           entry.memoryMode == memoryMode
         else
           entry.memoryMode == memoryMode && (rddToAdd.isEmpty || rddToAdd != getRddId(blockId))
@@ -408,20 +310,22 @@ private[spark] class MemoryStore(
                              _bytes: () => ChunkedByteBuffer,
                              prefetch: Boolean = false): Boolean = {
     require(!contains(blockId), s"Block $blockId is already present in the MemoryStore")
-    updateEntryNeighbour(blockId)
+
     if (memoryManager.acquireStorageMemory(blockId, size, memoryMode)) {
       // We acquired enough memory for the block, so go ahead and put it
       val bytes = _bytes()
       assert(bytes.size == size)
       val entry = new SerializedMemoryEntry[T](bytes, memoryMode, implicitly[ClassTag[T]])
       entries.synchronized {
-        if(prefetch) entries.put(blockId, entry)
-        else entries.putSpatial(blockId,entry)
+        if (prefetch) entries.put(blockId, entry)
+        else entries.putSpatial(blockId, entry)
       }
+      updateEntryNeighbour(blockId)
       logInfo("Block %s stored as bytes in memory (estimated size %s, free %s)".format(
         blockId, Utils.bytesToString(size), Utils.bytesToString(maxMemory - blocksMemoryUsed)))
       true
     } else {
+      updateEntryNeighbour(blockId)
       false
     }
   }
@@ -450,7 +354,7 @@ private[spark] class MemoryStore(
 
     require(!contains(blockId), s"Block $blockId is already present in the MemoryStore")
 
-    updateEntryNeighbour(blockId)
+
     // Number of elements unrolled so far
     var elementsUnrolled = 0
     // Whether there is still enough memory for us to continue unrolling this block
@@ -537,15 +441,17 @@ private[spark] class MemoryStore(
       }
       if (enoughStorageMemory) {
         entries.synchronized {
-          if(prefetch) entries.put(blockId, entry)
-          else entries.putSpatial(blockId,entry)
+          if (prefetch) entries.put(blockId, entry)
+          else entries.putSpatial(blockId, entry)
         }
+        updateEntryNeighbour(blockId)
         logInfo("Block %s stored as values in memory (estimated size %s, free %s)".format(
           blockId, Utils.bytesToString(size), Utils.bytesToString(maxMemory - blocksMemoryUsed)))
         Right(size)
       } else {
         assert(currentUnrollMemoryForThisTask >= unrollMemoryUsedByThisBlock,
           "released too much unroll memory")
+        updateEntryNeighbour(blockId)
         Left(new PartiallyUnrolledIterator(
           this,
           MemoryMode.ON_HEAP,
@@ -556,6 +462,7 @@ private[spark] class MemoryStore(
     } else {
       // We ran out of space while unrolling the values for this block
       logUnrollFailureMessage(blockId, vector.estimateSize())
+      updateEntryNeighbour(blockId)
       Left(new PartiallyUnrolledIterator(
         this,
         MemoryMode.ON_HEAP,
@@ -590,7 +497,7 @@ private[spark] class MemoryStore(
 
     require(!contains(blockId), s"Block $blockId is already present in the MemoryStore")
 
-    updateEntryNeighbour(blockId)
+
     val allocator = memoryMode match {
       case MemoryMode.ON_HEAP => ByteBuffer.allocate _
       case MemoryMode.OFF_HEAP => Platform.allocateDirectBuffer _
@@ -677,9 +584,10 @@ private[spark] class MemoryStore(
         assert(success, "transferring unroll memory to storage memory failed")
       }
       entries.synchronized {
-        if(prefetch) entries.put(blockId,entry)
+        if (prefetch) entries.put(blockId, entry)
         else entries.putSpatial(blockId, entry)
       }
+      updateEntryNeighbour(blockId)
       logInfo("Block %s stored as bytes in memory (estimated size %s, free %s)".format(
         blockId, Utils.bytesToString(entry.size),
         Utils.bytesToString(maxMemory - blocksMemoryUsed)))
@@ -687,6 +595,7 @@ private[spark] class MemoryStore(
     } else {
       // We ran out of space while unrolling the values for this block
       logUnrollFailureMessage(blockId, bbos.size)
+      updateEntryNeighbour(blockId)
       Left(
         new PartiallySerializedBlock(
           this,
