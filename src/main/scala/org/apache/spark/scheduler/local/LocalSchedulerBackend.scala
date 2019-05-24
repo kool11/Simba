@@ -148,7 +148,7 @@ private[spark] class LocalSchedulerBackend(
   }
 
   override def BlockIdMapToMBR(broadcast:Broadcast[_]) :Unit={
-    
+
   }
 
 }
