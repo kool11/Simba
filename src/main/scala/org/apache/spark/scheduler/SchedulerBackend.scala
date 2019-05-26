@@ -36,7 +36,7 @@ private[spark] trait SchedulerBackend {
     */
   def getDriverLogUrls: Option[Map[String, String]] = None
 
-  def BlockIdMapToMBR(broadcast:Broadcast[_]) :Unit
+  def BlockIdMapToMBR(broadcast:Broadcast[_]) ={}
 
 }
 

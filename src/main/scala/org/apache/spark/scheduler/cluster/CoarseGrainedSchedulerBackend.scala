@@ -11,7 +11,7 @@ import org.apache.spark.scheduler._
 import org.apache.spark.scheduler.cluster.CoarseGrainedClusterMessages._
 import org.apache.spark.scheduler.cluster.CoarseGrainedSchedulerBackend.ENDPOINT_NAME
 import org.apache.spark.util.{RpcUtils, SerializableBuffer, ThreadUtils, Utils}
-import org.apache.spark.{ExecutorAllocationClient, SparkEnv, SparkException, TaskState}
+import org.apache.spark._
 
 import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
 import scala.concurrent.Future
@@ -193,6 +193,14 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
         val reply = SparkAppConfig(sparkProperties,
           SparkEnv.get.securityManager.getIOEncryptionKey())
         context.reply(reply)
+
+      case BlockIdMapToMBR(bc)=>
+        logInfo("asking each executor to fetch the bc")
+        for ((_, executorData) <- executorDataMap) {
+          executorData.executorEndpoint.send(BlockIdMapToMBR(bc))
+        }
+        context.reply(true)
+        //executorDataMap.foreach(executor=>executor._2.executorEndpoint.ask[Boolean](BlockIdToMBR(bc)))
     }
 
     // Make fake resource offers on all executors
@@ -589,12 +597,11 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
   protected def doKillExecutors(executorIds: Seq[String]): Future[Boolean] =
     Future.successful(false)
 
-  override def BlockIdMapToMBR(broadcast:Broadcast[_]) = {
+  override  def BlockIdMapToMBR(broadcast:Broadcast[_]) = {
     val shouldDisable = CoarseGrainedSchedulerBackend.this.synchronized {
-      logInfo("hahahaha register.....")
-      for (executor <- executorDataMap.values) {
-        executor.executorEndpoint.send(BlockIdToMBR(broadcast))
-      }
+      logInfo("send to driverEndpoint")
+      //driverEndpoint.send(BlockIdMapToMBR(broadcast))
+      driverEndpoint.askWithRetry[Boolean](BlockIdMapToMBR(broadcast))
     }
   }
 }
