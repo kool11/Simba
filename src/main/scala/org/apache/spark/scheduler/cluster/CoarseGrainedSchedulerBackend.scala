@@ -171,6 +171,7 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
         }
 
       case StopDriver =>
+        logInfo("ask driver to stop")
         context.reply(true)
         stop()
 
