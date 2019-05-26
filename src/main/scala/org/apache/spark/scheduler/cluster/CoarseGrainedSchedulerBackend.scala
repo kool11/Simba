@@ -194,10 +194,10 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
           SparkEnv.get.securityManager.getIOEncryptionKey())
         context.reply(reply)
 
-      case BlockIdMapToMBR(bc)=>
+      case BlockIdToMBR(bc)=>
         logInfo("asking each executor to fetch the bc")
         for ((_, executorData) <- executorDataMap) {
-          executorData.executorEndpoint.send(BlockIdMapToMBR(bc))
+          executorData.executorEndpoint.send(BlockIdToMBR(bc))
         }
         context.reply(true)
         //executorDataMap.foreach(executor=>executor._2.executorEndpoint.ask[Boolean](BlockIdToMBR(bc)))
