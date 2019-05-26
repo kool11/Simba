@@ -599,11 +599,9 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
     Future.successful(false)
 
   override  def BlockIdMapToMBR(broadcast:Broadcast[_]) = {
-    val shouldDisable = CoarseGrainedSchedulerBackend.this.synchronized {
       logInfo("send to driverEndpoint")
       //driverEndpoint.send(BlockIdMapToMBR(broadcast))
       driverEndpoint.ask[Boolean](StopDriver)
-    }
   }
 }
 
