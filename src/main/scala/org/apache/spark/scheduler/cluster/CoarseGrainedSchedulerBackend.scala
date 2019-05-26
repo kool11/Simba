@@ -202,6 +202,10 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
         }
         context.reply(true)
         //executorDataMap.foreach(executor=>executor._2.executorEndpoint.ask[Boolean](BlockIdToMBR(bc)))
+
+      case testMessage(id)=>
+        println("textMessage "+id)
+        context.reply(true)
     }
 
     // Make fake resource offers on all executors
@@ -599,9 +603,11 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
     Future.successful(false)
 
   override  def BlockIdMapToMBR(broadcast:Broadcast[_]) = {
-      logInfo("send to driverEndpoint")
-      //driverEndpoint.send(BlockIdMapToMBR(broadcast))
-      driverEndpoint.ask[Boolean](StopDriver)
+    logInfo("send to driverEndpoint")
+    //driverEndpoint.send(BlockIdMapToMBR(broadcast))
+    val x = driverEndpoint.ask[Boolean](testMessage(1))
+    driverEndpoint.ask[Boolean](StopDriver)
+
   }
 }
 
