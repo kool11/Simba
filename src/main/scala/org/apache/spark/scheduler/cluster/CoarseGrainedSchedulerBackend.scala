@@ -604,7 +604,8 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
 
   override  def BlockIdMapToMBR(broadcast:Broadcast[_]) = {
     logInfo("send to driverEndpoint")
-    driverEndpoint.send(BlockIdToMBR(broadcast))
+    val serializedBroadcast = ser.serialize(broadcast)
+    driverEndpoint.ask[Boolean](BlockIdToMBR(new SerializableBuffer(serializedBroadcast)))
     //val x = driverEndpoint.ask[Boolean](testMessage(1))
     //driverEndpoint.ask[Boolean](StopDriver)
 
