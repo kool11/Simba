@@ -5,6 +5,7 @@ import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicBoolean
 
 import org.apache.spark.TaskState.TaskState
+import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.deploy.worker.WorkerWatcher
 import org.apache.spark.internal.Logging
@@ -112,7 +113,8 @@ private[spark] class CoarseGrainedExecutorBackend(
     case BlockIdToMBR(broadcastMessage)=>
       logInfo("Received BlockId map to MBR")
       logInfo(broadcastMessage.getClass.toString)
-      broadcastMessage.value match {
+      val bc = ser.deserialize[Broadcast[Any]](broadcastMessage.value)
+      bc.value match {
         case map:List[(BlockId,MBR)]=>
           SparkEnv.get.blockManager.memoryStore.add_dist(map)
         case _=>
