@@ -197,10 +197,12 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
 
       case BlockIdToMBR(bc)=>
         logInfo("asking each executor to fetch the bc")
+        println("executor's size: "+executorDataMap.size)
         for ((_, executorData) <- executorDataMap) {
+          println(executorData.executorAddress.toString())
           logInfo("send to executor: "+executorData.executorAddress.toString())
           val result = executorData.executorEndpoint.ask[Boolean](BlockIdToMBR(bc))
-          logInfo("send "+result.toString)
+          logInfo("send return signal:"+result.toString)
         }
         context.reply(true)
         //executorDataMap.foreach(executor=>executor._2.executorEndpoint.ask[Boolean](BlockIdToMBR(bc)))
