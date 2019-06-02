@@ -9,7 +9,7 @@ import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.deploy.worker.WorkerWatcher
 import org.apache.spark.internal.Logging
-import org.apache.spark.rpc.{RpcAddress, RpcEndpointRef, RpcEnv, ThreadSafeRpcEndpoint}
+import org.apache.spark.rpc._
 import org.apache.spark.scheduler.cluster.CoarseGrainedClusterMessages.{BlockIdToMBR, KillTask, LaunchTask, RegisterExecutor, RegisterExecutorFailed, RegisteredExecutor, RemoveExecutor, RetrieveSparkAppConfig, Shutdown, SparkAppConfig, StatusUpdate, StopExecutor}
 import org.apache.spark.scheduler.{ExecutorLossReason, TaskDescription}
 import org.apache.spark.serializer.SerializerInstance
@@ -119,6 +119,20 @@ private[spark] class CoarseGrainedExecutorBackend(
           SparkEnv.get.blockManager.memoryStore.add_dist(map)
         case _=>
       }
+  }
+
+  override def receiveAndReply(context: RpcCallContext): PartialFunction[Any, Unit] = {
+    case BlockIdToMBR(broadcastMessage)=>
+      logInfo("Received BlockId map to MBR")
+      logInfo(broadcastMessage.getClass.toString)
+      val bc = ser.deserialize[Broadcast[Any]](broadcastMessage.value)
+      context.reply(true)
+      bc.value match {
+        case map:List[(BlockId,MBR)]=>
+          SparkEnv.get.blockManager.memoryStore.add_dist(map)
+        case _=>
+      }
+
   }
 
   override def onDisconnected(remoteAddress: RpcAddress): Unit = {
