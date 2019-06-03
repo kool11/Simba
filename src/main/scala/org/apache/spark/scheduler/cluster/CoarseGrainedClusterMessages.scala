@@ -98,7 +98,7 @@ private[spark] object CoarseGrainedClusterMessages {
   //new message
   case class BlockIdToMBR(broadcast:SerializableBuffer) extends CoarseGrainedClusterMessage
 
-  case class testMessage(id :Int) extends CoarseGrainedClusterMessage
+  case class testMessage extends CoarseGrainedClusterMessage
 
 
 }
