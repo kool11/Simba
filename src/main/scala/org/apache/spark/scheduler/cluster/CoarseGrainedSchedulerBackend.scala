@@ -199,7 +199,18 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
         logInfo("asking each executor to fetch the bc")
         context.reply(true)
         println("executor's size: "+executorDataMap.size)
-        executorDataMap.values.foreach(executor=>{
+        val x = executorDataMap.keySet
+        println(x.size)
+        x.foreach{y=>
+          executorDataMap.get(y) match {
+            case Some(executorInfo) =>
+              executorInfo.executorEndpoint.send(BlockIdToMBR(bc))
+            case None =>
+              // Ignoring the task kill since the executor is not registered.
+              println(s"cannot fins executorId: "+y)
+          }
+        }
+        /*executorDataMap.values.foreach(executor=>{
           println(executor.executorAddress.toString())
           println("send to executor: "+executor.executorAddress.toString())
           executor.executorEndpoint.ask[Boolean](BlockIdToMBR(bc)).onFailure{
@@ -207,17 +218,13 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
           }(ThreadUtils.sameThread)
           //logInfo("send return signal:"+result.toString)
         })
-        /*for ((_, executorData) <- executorDataMap) {
-          println(executorData.executorAddress.toString())
-          logInfo("send to executor: "+executorData.executorAddress.toString())
-          val result = executorData.executorEndpoint.ask[Boolean](BlockIdToMBR(bc))
-          logInfo("send return signal:"+result.toString)
-        }*/
-
+        */
         //executorDataMap.foreach(executor=>executor._2.executorEndpoint.ask[Boolean](BlockIdToMBR(bc)))
 
       case testMessage=>
         logInfo("test message")
+
+
         executorDataMap.values.foreach(executor=> {
           println(executor.executorAddress.toString())
         })
@@ -620,7 +627,6 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
 
   override  def BlockIdMapToMBR(broadcast:Broadcast[_]) = {
     logInfo("send to driverEndpoint")
-    //stop()
     /*val ser = SparkEnv.get.closureSerializer.newInstance()
     val serializedBroadcast = ser.serialize(broadcast)
     val result = driverEndpoint.ask[Boolean](BlockIdToMBR(new SerializableBuffer(serializedBroadcast)))
