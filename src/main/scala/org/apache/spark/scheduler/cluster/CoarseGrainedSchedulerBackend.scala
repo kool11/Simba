@@ -217,7 +217,9 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
         //executorDataMap.foreach(executor=>executor._2.executorEndpoint.ask[Boolean](BlockIdToMBR(bc)))
 
       case testMessage(id)=>
-        println("textMessage "+id)
+        executorDataMap.values.foreach(executor=> {
+          println(executor.executorAddress.toString())
+        })
         context.reply(true)
     }
 
@@ -619,12 +621,12 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
     logInfo("send to driverEndpoint")
     val ser = SparkEnv.get.closureSerializer.newInstance()
     val serializedBroadcast = ser.serialize(broadcast)
-    val result = driverEndpoint.ask[Boolean](BlockIdToMBR(new SerializableBuffer(serializedBroadcast)))
+    /*val result = driverEndpoint.ask[Boolean](BlockIdToMBR(new SerializableBuffer(serializedBroadcast)))
     result.onSuccess{
       case t=>println("success")
     }(ThreadUtils.sameThread)
-
-    //val x = driverEndpoint.ask[Boolean](testMessage(1))
+    */
+    val x = driverEndpoint.ask[Boolean](testMessage(1))
     //driverEndpoint.ask[Boolean](StopDriver)
 
   }
