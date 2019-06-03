@@ -197,14 +197,23 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
 
       case BlockIdToMBR(bc)=>
         logInfo("asking each executor to fetch the bc")
+        context.reply(true)
         println("executor's size: "+executorDataMap.size)
-        for ((_, executorData) <- executorDataMap) {
+        executorDataMap.values.foreach(executor=>{
+          println(executor.executorAddress.toString())
+          println("send to executor: "+executor.executorAddress.toString())
+          executor.executorEndpoint.ask[Boolean](BlockIdToMBR(bc)).onFailure{
+            case t=>println("failure")
+          }(ThreadUtils.sameThread)
+          //logInfo("send return signal:"+result.toString)
+        })
+        /*for ((_, executorData) <- executorDataMap) {
           println(executorData.executorAddress.toString())
           logInfo("send to executor: "+executorData.executorAddress.toString())
           val result = executorData.executorEndpoint.ask[Boolean](BlockIdToMBR(bc))
           logInfo("send return signal:"+result.toString)
-        }
-        context.reply(true)
+        }*/
+
         //executorDataMap.foreach(executor=>executor._2.executorEndpoint.ask[Boolean](BlockIdToMBR(bc)))
 
       case testMessage(id)=>
@@ -611,8 +620,10 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
     val ser = SparkEnv.get.closureSerializer.newInstance()
     val serializedBroadcast = ser.serialize(broadcast)
     val result = driverEndpoint.ask[Boolean](BlockIdToMBR(new SerializableBuffer(serializedBroadcast)))
-    if(result==true) println("success")
-    else println("failure")
+    result.onSuccess{
+      case t=>println("success")
+    }(ThreadUtils.sameThread)
+
     //val x = driverEndpoint.ask[Boolean](testMessage(1))
     //driverEndpoint.ask[Boolean](StopDriver)
 
