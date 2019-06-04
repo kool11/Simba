@@ -204,6 +204,7 @@ private[spark] class MemoryStore(
   }
 
   def add_dist(map: List[(BlockId, MBR)]): Unit = {
+    logInfo("add dist: "+SparkEnv.get.blockManager.blockManagerId.executorId+" map:"+map.size)
     map.foreach(x => add_dist(x._1, x._2))
   }
 
