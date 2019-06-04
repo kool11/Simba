@@ -49,7 +49,7 @@ class knnSpatialPQ2[A, B](val k_close: Int)
   extends mutable.LinkedHashMap[A, B] with Logging {
   private val neighbours = new mutable.LinkedHashMap[A, util.TreeSet[(A, Double)]]
   //private val haveStored = new mutable.HashSet[A]() //remember the arriving rdd in dist list
-  private val distArray: mutable.LinkedHashMap[A, MBR] = new mutable.LinkedHashMap[A, MBR]()
+  val distArray: mutable.LinkedHashMap[A, MBR] = new mutable.LinkedHashMap[A, MBR]()
   private val usePrefetch = true
   private val useSpatial = true
 
@@ -204,8 +204,9 @@ private[spark] class MemoryStore(
   }
 
   def add_dist(map: List[(BlockId, MBR)]): Unit = {
-    logInfo("add dist: "+SparkEnv.get.blockManager.blockManagerId.executorId+" map:"+map.size)
+    println("add dist: "+SparkEnv.get.blockManager.blockManagerId.executorId+" map:"+map.size)
     map.foreach(x => add_dist(x._1, x._2))
+    println("after add the entry dist length is "+entries.distArray.size)
   }
 
   private def getRddId(blockId: BlockId): Option[Int] = {

@@ -206,7 +206,7 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
             case Some(executorInfo) =>
               println("find executorId: "+y)
               executorInfo.executorEndpoint.ask[Boolean](BlockIdToMBR(bc)).onSuccess{
-                case t=>println("success")
+                case t=>println("success: "+y)
                   println(t)
               }(ThreadUtils.sameThread)
             case None =>
