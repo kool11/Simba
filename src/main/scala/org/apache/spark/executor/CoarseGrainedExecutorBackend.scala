@@ -127,12 +127,13 @@ private[spark] class CoarseGrainedExecutorBackend(
       println("Received BlockId map to MBR: "+executorId)
       logInfo(broadcastMessage.getClass.toString)
       val bc = ser.deserialize[Broadcast[Any]](broadcastMessage.value)
-      context.reply(true)
+
       bc.value match {
         case map:List[(BlockId,MBR)]=>
           SparkEnv.get.blockManager.memoryStore.add_dist(map)
         case _=>
       }
+      context.reply(true)
 
   }
 
