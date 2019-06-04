@@ -204,7 +204,10 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
         x.foreach{y=>
           executorDataMap.get(y) match {
             case Some(executorInfo) =>
-              executorInfo.executorEndpoint.send(BlockIdToMBR(bc))
+              println("find executorId: "+y+" host:"+executorInfo.executorAddress.toString())
+              executorInfo.executorEndpoint.ask[Boolean](BlockIdToMBR(bc)).onSuccess{
+                case t=>println("success")
+              }(ThreadUtils.sameThread)
             case None =>
               // Ignoring the task kill since the executor is not registered.
               println(s"cannot fins executorId: "+y)

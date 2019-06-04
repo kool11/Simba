@@ -123,7 +123,8 @@ private[spark] class CoarseGrainedExecutorBackend(
 
   override def receiveAndReply(context: RpcCallContext): PartialFunction[Any, Unit] = {
     case BlockIdToMBR(broadcastMessage)=>
-      logInfo("Received BlockId map to MBR")
+      logInfo("Received BlockId map to MBR: "+executorId)
+      println("Received BlockId map to MBR: "+executorId)
       logInfo(broadcastMessage.getClass.toString)
       val bc = ser.deserialize[Broadcast[Any]](broadcastMessage.value)
       context.reply(true)
