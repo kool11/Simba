@@ -148,7 +148,7 @@ class knnSpatialPQ2[A, B](val k_close: Int)
   //get block from memory
   def getSpatial(key: A): Option[B] = {
     if (useSpatial && neighbours.get(key).isDefined) {
-      logInfo("neighbour contain this block....hahaha")
+      logInfo("neighbour contain this block....hahaha"+ key)
       neighbours.synchronized {
         val iter = neighbours(key).iterator()
         while (iter.hasNext)
@@ -273,7 +273,7 @@ private[spark] class MemoryStore(
 
       if (freedMemory >= space) {
         logInfo(s"${selectedBlocks.size} blocks selected for dropping " +
-          s"(${Utils.bytesToString(freedMemory)} bytes)")
+          s"(${Utils.bytesToString(freedMemory)} bytes) ,for block:"+blockId)
         for (blockId <- selectedBlocks) {
           val entry = entries.synchronized {
             entries.get(blockId)
