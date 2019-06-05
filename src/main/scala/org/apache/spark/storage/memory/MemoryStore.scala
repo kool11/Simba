@@ -60,7 +60,10 @@ class knnSpatialPQ2[A, B](val k_close: Int)
   }
 
   def checkFirstTimeStoreInMemory(key: A) = {
-    if (neighbours.contains(key)) true
+    if (neighbours.contains(key)) {
+      logInfo("not the first time arrive, block"+key.toString)
+      true
+    }
     else false
   }
 

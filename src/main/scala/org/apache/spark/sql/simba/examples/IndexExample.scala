@@ -18,8 +18,8 @@ object IndexExample {
       .config("simba.index.partitions", "64")
       .getOrCreate()
 
-    buildIndex(simbaSession)
-    //useIndex1(simbaSession)
+    //buildIndex(simbaSession)
+    useIndex1(simbaSession)
     //useIndex2(simbaSession)
     //simbaSession.stop()
   }
@@ -53,8 +53,8 @@ object IndexExample {
 
     simba.showIndex("b")
 
-    val res = simba.sql("SELECT * FROM b")
-    res.knn(Array("x", "y"), Array(1.0, 1.0), 100).show(10)
+    //val res = simba.sql("SELECT * FROM b")
+    //res.knn(Array("x", "y"), Array(1.0, 1.0), 100).show(10)
     //res.knn(Array("x", "y"),Array(2.0, 1.0),1).show(4)
 
   }

@@ -1111,6 +1111,7 @@ private[spark] class BlockManager(
                                            level: StorageLevel,
                                            diskBytes: ChunkedByteBuffer): Option[ChunkedByteBuffer] = {
     require(!level.deserialized)
+    logInfo("maybe cache block: "+blockId.toString())
     if (level.useMemory) {
       // Synchronize on blockInfo to guard against a race condition where two readers both try to
       // put values read from disk into the MemoryStore.
@@ -1156,6 +1157,7 @@ private[spark] class BlockManager(
                                                level: StorageLevel,
                                                diskIterator: Iterator[T]): Iterator[T] = {
     require(level.deserialized)
+    logInfo("maybe cache block: "+blockId.toString())
     val classTag = blockInfo.classTag.asInstanceOf[ClassTag[T]]
     if (level.useMemory) {
       // Synchronize on blockInfo to guard against a race condition where two readers both try to
