@@ -529,7 +529,7 @@ private[spark] class BlockManager(
   /**prefetch RDD block from disk*/
   def prefetch(blockId: BlockId):Boolean={
     log.info(s"Prefetching local block $blockId from disk")
-    blockInfoManager.lockForReading(blockId) match {
+    blockInfoManager.lockForReading(blockId,false) match {
       case None =>
         logDebug(s"Block $blockId was not found")
         false
