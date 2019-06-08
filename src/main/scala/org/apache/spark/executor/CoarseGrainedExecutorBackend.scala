@@ -119,7 +119,7 @@ private[spark] class CoarseGrainedExecutorBackend(
           SparkEnv.get.blockManager.memoryStore.add_dist(map)
         case _=>
       }
-      executor.
+      executor.prefetchBlockAtFixedRate()
   }
 
   override def receiveAndReply(context: RpcCallContext): PartialFunction[Any, Unit] = {
