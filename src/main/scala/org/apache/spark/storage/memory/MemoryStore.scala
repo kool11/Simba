@@ -45,7 +45,7 @@ case class Point(x: Double, y: Double) {
   }
 }
 
-class knnSpatialPQ2[A, B](val k_close: Int)
+class knnSpatialPQ2[A, B](val k_close: Int, memoryStore: MemoryStore)
   extends mutable.LinkedHashMap[A, B] with Logging {
   private val neighbours = new mutable.LinkedHashMap[A, util.TreeSet[(A, Double)]]
   //private val haveStored = new mutable.HashSet[A]() //remember the arriving rdd in dist list
@@ -135,7 +135,21 @@ class knnSpatialPQ2[A, B](val k_close: Int)
           case Some(v) => super.put(key, v)
         }
       else {
-        SparkEnv.get.blockManager.prefetch(key.asInstanceOf[BlockId])
+        key match {
+          case b:BlockId=>
+            memoryStore.blockToCache.synchronized{
+              if(memoryStore.blockToCache.contains(key.asInstanceOf[BlockId])){
+                memoryStore.blockToCache.get(key.asInstanceOf[BlockId]) match {
+                  case Some(count)=>memoryStore.blockToCache.put(key.asInstanceOf[BlockId],count+1)
+                }
+
+              }else{
+                memoryStore.blockToCache.put(key.asInstanceOf[BlockId],1)
+              }
+            }
+
+        }
+        //SparkEnv.get.blockManager.prefetch(key.asInstanceOf[BlockId])
       }
     } else {
       if (super.contains(key))
@@ -183,7 +197,8 @@ private[spark] class MemoryStore(
 
   // TODO: load the thres from index or config
   private val k_close = conf.getInt("spark.storage.k", 3)
-  private val entries = new knnSpatialPQ2[BlockId, MemoryEntry[_]](k_close)
+  private val entries = new knnSpatialPQ2[BlockId, MemoryEntry[_]](k_close, this)
+  val blockToCache = new mutable.LinkedHashMap[BlockId,Int]()
   //private val persistRDD = new mutable.LinkedHashMap[BlockId,Boolean]()
 
   private def updateEntryNeighbour(blockId: BlockId) = {
