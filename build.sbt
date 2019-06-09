@@ -32,3 +32,5 @@ libraryDependencies += "com.vividsolutions" % "jts-core" % "1.14.0"
 libraryDependencies += "org.scalactic" %% "scalactic" % "3.0.1"
 
 libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.1" % "test"
+
+libraryDependencies += "org.eclipse.jetty" % "jetty-servlet" % "9.3.9.v20160517" % "provided"
