@@ -539,21 +539,21 @@ private[spark] class BlockManager(
         re
       }
     })
-    memoryStore.blockToCache.synchorinzed{
+    memoryStore.blockToCache.synchronized{
      memoryStore.blockToCache.foreach(t=>
        sortHeap.add((t._1,t._2)
      ))
       memoryStore.blockToCache.clear()
     }
     var count:Int = 0
-    while(!sortHeap.isEmpty&&count<10){
+    while(sortHeap.size()>0 && count<10){
       count = count+1
       val (blockId, value)=sortHeap.peek()
       log.info(s"Prefetching local block $blockId from disk")
       blockInfoManager.lockForReading(blockId,false) match {
         case None =>
           logDebug(s"Block $blockId was not found")
-          false
+          return false
         case Some(info) =>
           val level = info.level
           logDebug(s"Level for block $blockId is $level")
@@ -566,8 +566,8 @@ private[spark] class BlockManager(
               val classTag = info.classTag.asInstanceOf[ClassTag[Any]]
               val putSucceeded=memoryStore.putIteratorAsValues(blockId, diskValues, classTag,true)
               putSucceeded match {
-                case  Left(v)=>false
-                case Right(b)=>true
+                case  Left(v)=>return false
+                case Right(b)=>return true
               }
               //maybeCacheDiskValuesInMemory(info, blockId, level, diskValues)
             } else {
@@ -580,14 +580,13 @@ private[spark] class BlockManager(
                 diskBytes.copy(allocator)
               },true)
               if(putSucceeded) diskBytes.dispose()
-              putSucceeded
+              return putSucceeded
             }
           }
-          else false
+          else return false
       }
     }
-
-
+    false
   }
 
   /**
