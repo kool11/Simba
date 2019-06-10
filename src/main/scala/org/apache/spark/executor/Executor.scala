@@ -573,16 +573,21 @@ private[spark] class Executor(
     heartbeater.scheduleAtFixedRate(heartbeatTask, initialDelay, intervalMs, TimeUnit.MILLISECONDS)
   }
   def prefetchBlockAtFixedRate(): Unit ={
-    val intervalMs = 1L
-    val initialDelay = 1L
+    val intervals = 10L
+    val initialDelay = 5L
     val prefetchTask = new Runnable {
       override def run(): Unit = {
-        if(runningTasks.size()<1){
-          env.blockManager.prefetch()
+        logInfo("prefetch-thred is running ")
+        if(runningTasks.size()<2){
+          logInfo("prefetch-thred will call this method ")
+          val result = env.blockManager.prefetch()
+          result.foreach(s=>logInfo(s"prefetch $s from disk successfully"))
         }
       }
     }
-    prefetch.scheduleAtFixedRate(prefetchTask, initialDelay, intervalMs, TimeUnit.SECONDS)
+    logInfo("prefetch-thread start run")
+
+    prefetch.scheduleAtFixedRate(prefetchTask, initialDelay, intervals, TimeUnit.SECONDS)
   }
 }
 

@@ -530,7 +530,7 @@ private[spark] class BlockManager(
   }
 
   /**prefetch RDD block from disk*/
-  def prefetch():Boolean={
+  def prefetch():mutable.Seq[String]={
     val sortHeap = new PriorityQueue[(BlockId,Int)](10,new Comparator[(BlockId, Int)] {
       override def compare(o1: (BlockId, Int), o2: (BlockId, Int)): Int = {
         val re = if (o1._2 > o2._2) 1
@@ -545,6 +545,7 @@ private[spark] class BlockManager(
      ))
       memoryStore.blockToCache.clear()
     }
+    var result = mutable.Seq[String]()
     var count:Int = 0
     while(sortHeap.size()>0 && count<10){
       count = count+1
@@ -553,7 +554,6 @@ private[spark] class BlockManager(
       blockInfoManager.lockForReading(blockId,false) match {
         case None =>
           logDebug(s"Block $blockId was not found")
-          return false
         case Some(info) =>
           val level = info.level
           logDebug(s"Level for block $blockId is $level")
@@ -566,8 +566,8 @@ private[spark] class BlockManager(
               val classTag = info.classTag.asInstanceOf[ClassTag[Any]]
               val putSucceeded=memoryStore.putIteratorAsValues(blockId, diskValues, classTag,true)
               putSucceeded match {
-                case  Left(v)=>return false
-                case Right(b)=>return true
+                case  Left(v)=>result+blockId.name
+                case Right(b)=>
               }
               //maybeCacheDiskValuesInMemory(info, blockId, level, diskValues)
             } else {
@@ -580,13 +580,12 @@ private[spark] class BlockManager(
                 diskBytes.copy(allocator)
               },true)
               if(putSucceeded) diskBytes.dispose()
-              return putSucceeded
+              result+blockId.name
             }
           }
-          else return false
       }
     }
-    false
+    return result
   }
 
   /**

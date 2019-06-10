@@ -81,7 +81,7 @@ class knnSpatialPQ2[A, B](val k_close: Int, memoryStore: MemoryStore)
       })
       val newMBR = distArray.get(key)
       if (newMBR.isDefined) {
-        logInfo("update Neighbour....hahaha with"+key)
+        //logInfo("update Neighbour....hahaha with"+key)
         //TODO:get the mbr of key Block
 
         //blockId which has mbr and exist in this node
