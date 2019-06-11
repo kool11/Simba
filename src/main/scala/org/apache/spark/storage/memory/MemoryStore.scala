@@ -162,7 +162,7 @@ class knnSpatialPQ2[A, B](val k_close: Int, memoryStore: MemoryStore)
   //get block from memory
   def getSpatial(key: A): Option[B] = {
     if (useSpatial && neighbours.get(key).isDefined) {
-      logInfo("neighbour contain this block....hahaha"+ key)
+      logInfo("neighbour contain this block: "+ key)
       neighbours.synchronized {
         val iter = neighbours(key).iterator()
         while (iter.hasNext)
@@ -222,9 +222,9 @@ private[spark] class MemoryStore(
   }
 
   def add_dist(map: List[(BlockId, MBR)]): Unit = {
-    println("add dist: "+SparkEnv.get.blockManager.blockManagerId.executorId+" map:"+map.size)
+    logInfo("add dist: "+SparkEnv.get.blockManager.blockManagerId.executorId+" map:"+map.size)
     map.foreach(x => add_dist(x._1, x._2))
-    println("after add the entry dist length is "+entries.distArray.size)
+    logInfo("after add the entry dist length is "+entries.distArray.size)
   }
 
   private def getRddId(blockId: BlockId): Option[Int] = {
@@ -242,7 +242,8 @@ private[spark] class MemoryStore(
       val selectedBlocks = new ArrayBuffer[BlockId]
 
       def blockIsEvictable(blockId: BlockId, entry: MemoryEntry[_]): Boolean = {
-        if (entries.checkFirstTimeStoreInMemory(blockId))
+        val th = Thread.currentThread
+        if (th.getName.equals("prefetch-thread")&&entries.checkFirstTimeStoreInMemory(blockId))
           entry.memoryMode == memoryMode
         else
           entry.memoryMode == memoryMode && (rddToAdd.isEmpty || rddToAdd != getRddId(blockId))
