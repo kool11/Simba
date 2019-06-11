@@ -21,7 +21,7 @@ object IndexExample {
     //buildIndex(simbaSession)
     useIndex1(simbaSession)
     //useIndex2(simbaSession)
-    //simbaSession.stop()
+    simbaSession.stop()
   }
 
   private def buildIndex(simba: SimbaSession): Unit = {
@@ -49,12 +49,17 @@ object IndexExample {
     }).toDS()
     datapoint.createOrReplaceTempView("b")
 
+    var start = System.currentTimeMillis()
     simba.indexTable("b", RTreeType, "QuadTreeForData", Array("x", "y"))
-
+    var end = System.currentTimeMillis()
+    println("Create Index cost: "+(end-start))
     simba.showIndex("b")
 
+    start = System.currentTimeMillis()
     val res = simba.sql("SELECT * FROM b")
     res.knn(Array("x", "y"), Array(1.0, 1.0), 100).show(10)
+    end = System.currentTimeMillis()
+    println("query cost: "+(end-start))
     //res.knn(Array("x", "y"),Array(2.0, 1.0),1).show(4)
 
   }
@@ -66,12 +71,16 @@ object IndexExample {
 
     datapoints.createOrReplaceTempView("b")
 
+    var start = System.currentTimeMillis()
     simba.indexTable("b", RTreeType, "RtreeForData", Array("x", "y"))
-
+    var end = System.currentTimeMillis()
+    println("Create Index cost: "+(end-start))
     simba.showIndex("b")
 
+    start = System.currentTimeMillis()
     simba.sql("SELECT * FROM b where b.x >1 and b.y<=2").show(5)
-
+    end = System.currentTimeMillis()
+    println("query cost: "+(end-start))
   }
 
   private def useIndex3(simba: SimbaSession): Unit = {
