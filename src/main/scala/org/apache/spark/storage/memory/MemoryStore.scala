@@ -241,22 +241,29 @@ private[spark] class MemoryStore(
       var freedMemory = 0L
       val rddToAdd = blockId.flatMap(getRddId)
       val selectedBlocks = new ArrayBuffer[BlockId]
+      val temp = blockId
+      var canBeReplace = false
 
       def blockIsEvictable(blockId: BlockId, entry: MemoryEntry[_]): Boolean = {
         //val th = Thread.currentThread
         //if (th.getName.equals("prefetch-thread")&&entries.checkFirstTimeStoreInMemory(blockId))
-        logInfo(s"check $blockId for $rddToAdd")
-        entries.checkFirstTimeStoreInMemory(blockId) match {
-          case true=> logInfo(blockId+" reply result is true")
-            entry.memoryMode == memoryMode
-          case false => entry.memoryMode == memoryMode && (rddToAdd.isEmpty || rddToAdd != getRddId(blockId))
-        }
+
+        if(canBeReplace)
+          //logInfo(s"check $blockId can be replace")
+          entry.memoryMode == memoryMode
+        else
+          entry.memoryMode == memoryMode && (rddToAdd.isEmpty || rddToAdd != getRddId(blockId))
 
       }
       // This is synchronized to ensure that the set of entries is not changed
       // (because of getValue or getBytes) while traversing the iterator, as that
       // can lead to exceptions.
       entries.synchronized {
+        canBeReplace = temp match {
+          case Some(x)=>entries.checkFirstTimeStoreInMemory(x)
+          case _=>false
+        }
+        logInfo(s"$temp can be move to memory:"+canBeReplace)
         val iterator = entries.iterator
         while (freedMemory < space && iterator.hasNext) {
           val pair = iterator.next()
