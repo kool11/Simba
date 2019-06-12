@@ -135,6 +135,7 @@ class knnSpatialPQ2[A, B](val k_close: Int, memoryStore: MemoryStore)
           case Some(v) => super.put(key, v)
         }
       else {
+        logInfo(s"will prefetch $key")
         key match {
           case b:BlockId=>
             memoryStore.blockToCache.synchronized{
@@ -242,11 +243,15 @@ private[spark] class MemoryStore(
       val selectedBlocks = new ArrayBuffer[BlockId]
 
       def blockIsEvictable(blockId: BlockId, entry: MemoryEntry[_]): Boolean = {
-        val th = Thread.currentThread
-        if (th.getName.equals("prefetch-thread")&&entries.checkFirstTimeStoreInMemory(blockId))
-          entry.memoryMode == memoryMode
-        else
-          entry.memoryMode == memoryMode && (rddToAdd.isEmpty || rddToAdd != getRddId(blockId))
+        //val th = Thread.currentThread
+        //if (th.getName.equals("prefetch-thread")&&entries.checkFirstTimeStoreInMemory(blockId))
+        logInfo(s"check $blockId for $rddToAdd")
+        entries.checkFirstTimeStoreInMemory(blockId) match {
+          case true=> logInfo(blockId+" reply result is true")
+            entry.memoryMode == memoryMode
+          case false => entry.memoryMode == memoryMode && (rddToAdd.isEmpty || rddToAdd != getRddId(blockId))
+        }
+
       }
       // This is synchronized to ensure that the set of entries is not changed
       // (because of getValue or getBytes) while traversing the iterator, as that
@@ -289,7 +294,7 @@ private[spark] class MemoryStore(
 
       if (freedMemory >= space) {
         logInfo(s"${selectedBlocks.size} blocks selected for dropping " +
-          s"(${Utils.bytesToString(freedMemory)} bytes) ,for block:"+blockId)
+          s"(${Utils.bytesToString(freedMemory)} bytes) ,for block:"+rddToAdd)
         for (blockId <- selectedBlocks) {
           val entry = entries.synchronized {
             entries.get(blockId)

@@ -545,12 +545,13 @@ private[spark] class BlockManager(
      ))
       memoryStore.blockToCache.clear()
     }
+    logInfo("the block need to prefetch size is: "+sortHeap.size())
     var result = mutable.Seq[String]()
     var count:Int = 0
     while(sortHeap.size()>0 && count<10){
       count = count+1
       val (blockId, value)=sortHeap.peek()
-      log.info(s"Prefetching local block $blockId from disk")
+      log.info(s"prefetching local block $blockId from disk")
       blockInfoManager.lockForReading(blockId,false) match {
         case None =>
           logDebug(s"Block $blockId was not found")
@@ -585,6 +586,7 @@ private[spark] class BlockManager(
           }
       }
     }
+    log.info("prefetching local block size is: "+result.size)
     return result
   }
 

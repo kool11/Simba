@@ -128,7 +128,7 @@ private[spark] class Executor(
     * times, it should kill itself. The default value is 60. It means we will retry to send
     * heartbeats about 10 minutes because the heartbeat interval is 10s.
     */
-  private val HEARTBEAT_MAX_FAILURES = conf.getInt("spark.executor.heartbeat.maxFailures", 60)`
+  private val HEARTBEAT_MAX_FAILURES = conf.getInt("spark.executor.heartbeat.maxFailures", 60)
 
   /**
     * Count the failure times of heartbeat. It should only be accessed in the heartbeat thread. Each
@@ -577,15 +577,15 @@ private[spark] class Executor(
     val initialDelay = 5L
     val prefetchTask = new Runnable {
       override def run(): Unit = {
-        Thread.sleep(500)
+        Thread.sleep(10000)
         while (true){
           logInfo("prefetch-thread is running ")
           if(runningTasks.size()<2){
-            logInfo("prefetch-thred will call this method ")
+            logInfo("prefetch-thread will call this method ")
             val result = env.blockManager.prefetch()
             result.foreach(s=>logInfo(s"prefetch $s from disk successfully"))
           }
-          Thread.sleep(1000)
+          Thread.sleep(10000)
         }
 
       }
