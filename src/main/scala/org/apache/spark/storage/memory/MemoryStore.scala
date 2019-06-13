@@ -301,7 +301,7 @@ private[spark] class MemoryStore(
 
       if (freedMemory >= space) {
         logInfo(s"${selectedBlocks.size} blocks selected for dropping " +
-          s"(${Utils.bytesToString(freedMemory)} bytes) ,for block:"+rddToAdd)
+          s"(${Utils.bytesToString(freedMemory)} bytes) ,for block:"+temp)
         for (blockId <- selectedBlocks) {
           val entry = entries.synchronized {
             entries.get(blockId)

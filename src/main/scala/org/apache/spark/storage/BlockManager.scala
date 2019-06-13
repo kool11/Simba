@@ -556,34 +556,37 @@ private[spark] class BlockManager(
         case None =>
           logDebug(s"Block $blockId was not found")
         case Some(info) =>
-          val level = info.level
-          logDebug(s"Level for block $blockId is $level")
-          if (level.useDisk && diskStore.contains(blockId)&&level.useMemory) {
-            val diskBytes = diskStore.getBytes(blockId)
-            if (level.deserialized) {
-              val diskValues = serializerManager.dataDeserializeStream(
-                blockId,
-                diskBytes.toInputStream(dispose = true))(info.classTag)
-              val classTag = info.classTag.asInstanceOf[ClassTag[Any]]
-              val putSucceeded=memoryStore.putIteratorAsValues(blockId, diskValues, classTag,true)
-              putSucceeded match {
-                case  Left(v)=>result+blockId.name
-                case Right(b)=>
+          if(!memoryStore.contains(blockId)){
+            val level = info.level
+            logDebug(s"Level for block $blockId is $level")
+            if (level.useDisk && diskStore.contains(blockId)&&level.useMemory) {
+              val diskBytes = diskStore.getBytes(blockId)
+              if (level.deserialized) {
+                val diskValues = serializerManager.dataDeserializeStream(
+                  blockId,
+                  diskBytes.toInputStream(dispose = true))(info.classTag)
+                val classTag = info.classTag.asInstanceOf[ClassTag[Any]]
+                val putSucceeded=memoryStore.putIteratorAsValues(blockId, diskValues, classTag,true)
+                putSucceeded match {
+                  case  Left(v)=>result+blockId.name
+                  case Right(b)=>
+                }
+                //maybeCacheDiskValuesInMemory(info, blockId, level, diskValues)
+              } else {
+                //val stream = maybeCacheDiskBytesInMemory(info, blockId, level, diskBytes)
+                val allocator = level.memoryMode match {
+                  case MemoryMode.ON_HEAP => ByteBuffer.allocate _
+                  case MemoryMode.OFF_HEAP => Platform.allocateDirectBuffer _
+                }
+                val putSucceeded = memoryStore.putBytes(blockId, diskBytes.size, level.memoryMode, () => {
+                  diskBytes.copy(allocator)
+                }, true)
+                if(putSucceeded) diskBytes.dispose()
+                result+blockId.name
               }
-              //maybeCacheDiskValuesInMemory(info, blockId, level, diskValues)
-            } else {
-              //val stream = maybeCacheDiskBytesInMemory(info, blockId, level, diskBytes)
-              val allocator = level.memoryMode match {
-                case MemoryMode.ON_HEAP => ByteBuffer.allocate _
-                case MemoryMode.OFF_HEAP => Platform.allocateDirectBuffer _
-              }
-              val putSucceeded = memoryStore.putBytes(blockId, diskBytes.size, level.memoryMode, () => {
-                diskBytes.copy(allocator)
-              },true)
-              if(putSucceeded) diskBytes.dispose()
-              result+blockId.name
             }
           }
+
       }
     }
     log.info("prefetching local block size is: "+result.size)

@@ -136,7 +136,7 @@ private[spark] class CoarseGrainedExecutorBackend(
           SparkEnv.get.blockManager.memoryStore.add_dist(map)
         case _=> println("bc.value is not right")
       }
-      //executor.prefetchBlockAtFixedRate()
+      executor.prefetchBlockAtFixedRate()
       context.reply(true)
 
 
