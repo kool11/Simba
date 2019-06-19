@@ -55,11 +55,21 @@ object IndexExample {
     println("Create Index cost: "+(end-start))
     simba.showIndex("b")
 
-    start = System.currentTimeMillis()
-    val res = simba.sql("SELECT * FROM b")
-    res.knn(Array("x", "y"), Array(1.0, 1.0), 100).show(10)
-    end = System.currentTimeMillis()
-    println("query cost: "+(end-start))
+
+    var offset = scala.util.Random.nextInt()
+    var a = 0
+    for(a <- 1 to 10){
+      var x = scala.util.Random.nextInt(5)+scala.util.Random.nextFloat()+offset
+      var y = scala.util.Random.nextInt(5)+scala.util.Random.nextFloat()+offset
+      println("x:"+x+" y:"+y)
+      start = System.currentTimeMillis()
+      val res = simba.sql("SELECT * FROM b")
+      res.knn(Array("x", "y"), Array(x, y), 10).show(10)
+      end = System.currentTimeMillis()
+      println("query cost: "+(end-start))
+    }
+
+
     //res.knn(Array("x", "y"),Array(2.0, 1.0),1).show(4)
 
   }

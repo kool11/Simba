@@ -566,7 +566,7 @@ private[spark] class BlockManager(
                   blockId,
                   diskBytes.toInputStream(dispose = true))(info.classTag)
                 val classTag = info.classTag.asInstanceOf[ClassTag[Any]]
-                val putSucceeded=memoryStore.putIteratorAsValues(blockId, diskValues, classTag,true)
+                val putSucceeded=memoryStore.putIteratorAsValues(blockId, diskValues, classTag, true)
                 putSucceeded match {
                   case  Left(v)=>result+blockId.name
                   case Right(b)=>
@@ -589,7 +589,7 @@ private[spark] class BlockManager(
 
       }
     }
-    log.info("prefetching local block size is: "+result.size)
+    log.info("prefetched local block size is: "+result.size)
     return result
   }
 
