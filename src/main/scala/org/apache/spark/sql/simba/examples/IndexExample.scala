@@ -1,5 +1,7 @@
 package org.apache.spark.sql.simba.examples
 
+import java.io.{BufferedReader, FileWriter}
+
 import org.apache.spark.sql.simba.{Dataset, SimbaSession}
 import org.apache.spark.sql.simba.index.{HashMapType, QuadTreeType, RTreeType, TreapType}
 
@@ -55,23 +57,52 @@ object IndexExample {
     println("Create Index cost: "+(end-start))
     simba.showIndex("b")
 
+    val res = simba.sql("SELECT * FROM b")
 
-    var offset = scala.util.Random.nextInt()
+
     var a = 0
-    for(a <- 1 to 10){
-      var x = scala.util.Random.nextInt(5)+scala.util.Random.nextFloat()+offset
-      var y = scala.util.Random.nextInt(5)+scala.util.Random.nextFloat()+offset
-      println("x:"+x+" y:"+y)
-      start = System.currentTimeMillis()
-      val res = simba.sql("SELECT * FROM b")
-      res.knn(Array("x", "y"), Array(x, y), 10).show(10)
-      end = System.currentTimeMillis()
-      println("query cost: "+(end-start))
+    import scala.collection.mutable.Set
+    var test:Set[(Double,Double)]= Set()
+    var costTime:Set[Long] = Set()
+    //var offset = scala.util.Random.nextInt(2000)
+    var total = 0L
+    import java.io.FileReader
+    import java.io.BufferedReader
+    val in = new FileReader("/home/ruanke/work/simba/Simba/query_50.txt")
+    val reader = new BufferedReader(in)
+    var s = reader.readLine()
+    while(s!=null){
+      if(s.charAt(0)=='('&&s.charAt(s.length-1)==')'){
+        val index = s.indexOf(',')
+        val x1 = s.substring(1,index).toDouble
+        val y1 = s.substring(index+1,s.length-1).toDouble
+        test.add(x1,y1)
+      }
+      s= reader.readLine()
     }
 
+    for(a <- test){
+      var x:Double = a._1
+      var y:Double = a._2
+      //println("x:"+x+" y:"+y)
+      start = System.currentTimeMillis()
+      res.knn(Array("x", "y"), Array(x, y), 10).collect()
+      end = System.currentTimeMillis()
+      val temp = end-start
+      test.add((x,y))
+      total = total+temp
+      costTime.add(temp)
+      //println("query cost: "+(end-start))
+    }
+    import java.io.FileWriter
+    val out2 = new FileWriter("/home/ruanke/work/simba/Simba/test.txt",true)
+    for(i<-costTime) {
+      out2.write(i.toString+"\n")
+    }
+    out2.close()
 
+    println(total/50)
     //res.knn(Array("x", "y"),Array(2.0, 1.0),1).show(4)
-
   }
 
   private def useIndex2(simba: SimbaSession): Unit = {
