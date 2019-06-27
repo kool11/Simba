@@ -105,17 +105,35 @@ private[simba] class IndexManager extends Logging {
 
   private[simba] def lookupIndexedData(plan: LogicalPlan, indexName: String): Option[IndexedData] =
     readLock {
-      val tmp_res = indexedData.find(cd => plan.sameResult(cd.plan) && cd.name.equals(indexName))
-      if (tmp_res.nonEmpty) return tmp_res
-      else {
-        indexedData.find(cd => {
-          cd.plan match {
-            case tmp_plan: SubqueryAlias =>
-              plan.sameResult(tmp_plan.child) && cd.name.equals(indexName)
-            case _ => false
-          }
-        })
+//      val tmp_res = indexedData.find(cd => plan.sameResult(cd.plan) && cd.name.equals(indexName))
+//      if (tmp_res.nonEmpty) return tmp_res
+//      else {
+//        indexedData.find(cd => {
+//          cd.plan match {
+//            case tmp_plan: SubqueryAlias =>
+//              plan.sameResult(tmp_plan.child) && cd.name.equals(indexName)
+//            case _ => false
+//          }
+//        })
+//      }
+      try {
+        indexedData.find(cd => plan.sameResult(cd.plan) && cd.name.equals(indexName))
+        val tmp_res = indexedData.find(cd => plan.sameResult(cd.plan) && cd.name.equals(indexName))
+        if (tmp_res.nonEmpty) return tmp_res
+        else {
+          indexedData.find(cd => {
+            cd.plan match {
+              case tmp_plan: SubqueryAlias =>
+                plan.sameResult(tmp_plan.child) && cd.name.equals(indexName)
+              case _ => false
+            }
+          })
+        }
+      } catch {
+        case _: NullPointerException => indexedData.find(cd => cd.name.equals(indexName) &&
+          cd.name.equals(plan.key))
       }
+
     }
 
 
@@ -128,7 +146,7 @@ private[simba] class IndexManager extends Logging {
     val indexedItem = indexedData(dataIndex)
     val sparkContext = simbaSession.sparkContext
 
-    sparkContext.parallelize(Array(indexedItem.plan)).saveAsObjectFile(fileName + "/plan")
+   // sparkContext.parallelize(Array(indexedItem.plan)).saveAsObjectFile(fileName + "/plan")
     sparkContext.parallelize(Array(preData)).saveAsObjectFile(fileName + "/indexInfo")
     if (preData.indexType == RTreeType) {
       val rtreeRelation = indexedItem.indexedData.asInstanceOf[RTreeIndexedRelation]
@@ -151,7 +169,8 @@ private[simba] class IndexManager extends Logging {
   private[simba] def loadIndex(simbaSession: SimbaSession, indexName: String, fileName: String): Unit = {
     val sparkContext = simbaSession.sparkContext
     val info = sparkContext.objectFile[IndexInfo](fileName + "/indexInfo").collect().head
-    val plan = sparkContext.objectFile[LogicalPlan](fileName + "/plan").collect().head
+    //val plan = sparkContext.objectFile[LogicalPlan](fileName + "/plan").collect().head
+    val plan = null
     val rdd = sparkContext.objectFile[IPartition](fileName + "/rdd")
     if (info.indexType == RTreeType){
       val rtreeRelation = sparkContext.objectFile[RTreeIndexedRelation](fileName + "/rtreeRelation").collect().head

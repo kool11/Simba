@@ -2,6 +2,8 @@ package org.apache.spark.sql.simba.examples
 
 import java.io.{BufferedReader, FileWriter}
 
+import org.apache.spark.sql
+import org.apache.spark.sql.simba
 import org.apache.spark.sql.simba.{Dataset, SimbaSession}
 import org.apache.spark.sql.simba.index.{HashMapType, QuadTreeType, RTreeType, TreapType}
 
@@ -20,8 +22,9 @@ object IndexExample {
       .config("simba.index.partitions", "64")
       .getOrCreate()
 
-    //buildIndex(simbaSession)
-    useIndex1(simbaSession)
+    buildIndex(simbaSession)
+    useIndex(simbaSession)
+    //useIndex1(simbaSession)
     //useIndex2(simbaSession)
     simbaSession.stop()
   }
@@ -37,6 +40,20 @@ object IndexExample {
     simba.indexTable("a", RTreeType, "testqtree", Array("x", "y"))
 
     simba.showIndex("a")
+    val fileName = "file:///home/ruanke/work/Simba/Index"
+
+    simba.persistIndex("testqtree", fileName)
+
+  }
+
+  private def useIndex(simba: SimbaSession): Unit ={
+    import simba.implicits._
+    val datapoints = Seq(PointData(1.0, 1.0, 3.0, "1"), PointData(2.0, 2.0, 3.0, "2"), PointData(2.0, 2.0, 3.0, "3"),
+      PointData(2.0, 2.0, 3.0, "4"), PointData(3.0, 3.0, 3.0, "5"), PointData(4.0, 4.0, 3.0, "6")).toDS
+    val fileName = "file:///home/ruanke/work/Simba/Index"
+    simba.loadIndex("testqtree", fileName)
+    val res = simba.knn(Array("x", "y"), Array(10.0, 10), 5)
+    res.show()
   }
 
   private def useIndex1(simba: SimbaSession): Unit = {
@@ -92,6 +109,7 @@ object IndexExample {
       test.add((x,y))
       total = total+temp
       costTime.add(temp)
+      Thread.sleep(1000)
       //println("query cost: "+(end-start))
     }
     import java.io.FileWriter
