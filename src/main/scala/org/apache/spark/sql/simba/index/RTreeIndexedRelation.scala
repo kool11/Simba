@@ -55,7 +55,7 @@ private[simba] case class RTreeIndexedRelation(output: Seq[Attribute], child: Sp
   }
   require(checkKeys)
 
-  val dimension = ShapeUtils.getPointFromRow(child.execute().first(), column_keys, child, isPoint).coord.length
+  lazy val dimension = ShapeUtils.getPointFromRow(child.execute().first(), column_keys, child, isPoint).coord.length
 
   if (_indexedRDD == null) {
     buildIndex()

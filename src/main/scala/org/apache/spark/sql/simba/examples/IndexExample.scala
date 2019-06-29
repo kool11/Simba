@@ -17,14 +17,14 @@ object IndexExample {
   def main(args: Array[String]): Unit = {
     val simbaSession = SimbaSession
       .builder()
-      //.master("local[4]")
+      .master("local[4]")
       .appName("IndexExample")
       .config("simba.index.partitions", "64")
       .getOrCreate()
 
-    buildIndex(simbaSession)
+//    buildIndex(simbaSession)
     useIndex(simbaSession)
-    //useIndex1(simbaSession)
+//    useIndex1(simbaSession)
     //useIndex2(simbaSession)
     simbaSession.stop()
   }
@@ -40,7 +40,7 @@ object IndexExample {
     simba.indexTable("a", RTreeType, "testqtree", Array("x", "y"))
 
     simba.showIndex("a")
-    val fileName = "file:///home/ruanke/work/Simba/Index"
+    val fileName = "file:///D:\\Index"
 
     simba.persistIndex("testqtree", fileName)
 
@@ -50,9 +50,11 @@ object IndexExample {
     import simba.implicits._
     val datapoints = Seq(PointData(1.0, 1.0, 3.0, "1"), PointData(2.0, 2.0, 3.0, "2"), PointData(2.0, 2.0, 3.0, "3"),
       PointData(2.0, 2.0, 3.0, "4"), PointData(3.0, 3.0, 3.0, "5"), PointData(4.0, 4.0, 3.0, "6")).toDS
-    val fileName = "file:///home/ruanke/work/Simba/Index"
+    val fileName = "file:///D:\\Index"
     simba.loadIndex("testqtree", fileName)
-    val res = simba.knn(Array("x", "y"), Array(10.0, 10), 5)
+    import simba.simbaImplicits._
+    val res = datapoints.knn(Array("x", "y"), Array(10.0, 10), 5)
+    println(res.queryExecution)
     res.show()
   }
 

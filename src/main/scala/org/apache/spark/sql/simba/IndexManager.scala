@@ -85,18 +85,35 @@ private[simba] class IndexManager extends Logging {
   }
 
   private[simba] def lookupIndexedData(plan: LogicalPlan): Option[IndexedData] = readLock {
-    val tmp_res = indexedData.find(cd => plan.sameResult(cd.plan))
-    if (tmp_res.nonEmpty) return tmp_res
-    else {
-      indexedData.find(cd => {
-        cd.plan match {
-          case tmp_plan: SubqueryAlias =>
-            plan.sameResult(tmp_plan.child)
-          case _ => false
-        }
-      })
+    try {
+      val tmp_res = indexedData.find(cd => plan.sameResult(cd.plan))
+      if (tmp_res.nonEmpty) return tmp_res
+      else {
+        indexedData.find(cd => {
+          cd.plan match {
+            case tmp_plan: SubqueryAlias =>
+              plan.sameResult(tmp_plan.child)
+            case _ => false
+          }
+        })
+      }
+    } catch {
+      case _: NullPointerException => indexedData.find(cd => cd.name.equals(plan.key))
     }
   }
+
+//    val tmp_res = indexedData.find(cd => plan.sameResult(cd.plan))
+//    if (tmp_res.nonEmpty) return tmp_res
+//    else {
+//      indexedData.find(cd => {
+//        cd.plan match {
+//          case tmp_plan: SubqueryAlias =>
+//            plan.sameResult(tmp_plan.child)
+//          case _ => false
+//        }
+//      })
+//    }
+//  }
 
   private[simba] def lookupIndexedData(query: SQLDataset[_], indexName: String): Option[IndexedData] =
     readLock {
@@ -173,6 +190,12 @@ private[simba] class IndexManager extends Logging {
     val plan = null
     val rdd = sparkContext.objectFile[IPartition](fileName + "/rdd")
     if (info.indexType == RTreeType){
+//      val rtreeRelation = sparkContext.objectFile[RTreeIndexedRelation](fileName + "/rtreeRelation").collect().head
+//      indexedData += IndexedData(indexName, plan,
+//        RTreeIndexedRelation(rtreeRelation.output, rtreeRelation.child,
+//          rtreeRelation.table_name, rtreeRelation.column_keys,
+//          rtreeRelation.index_name)(rdd, rtreeRelation.global_rtree))
+
       val rtreeRelation = sparkContext.objectFile[RTreeIndexedRelation](fileName + "/rtreeRelation").collect().head
       indexedData += IndexedData(indexName, plan,
         RTreeIndexedRelation(rtreeRelation.output, rtreeRelation.child,
