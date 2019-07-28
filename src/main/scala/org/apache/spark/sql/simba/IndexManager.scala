@@ -234,9 +234,9 @@ private[simba] class IndexManager extends Logging {
     }.toList
 
 //    SimbaSession.addDistanceArray(map)
-    val bc=SimbaSession.getActiveSession.get.sparkContext.broadcast(map)
+    val bc = sparkContext.broadcast(map)
     println(bc.toString())
-    SimbaSession.getActiveSession.get.sparkContext.schedulerBackend.BlockIdMapToMBR(bc)
+    sparkContext.schedulerBackend.BlockIdMapToMBR(bc)
 
     if (info.indexType == RTreeType){
 //      val rtreeRelation = sparkContext.objectFile[RTreeIndexedRelation](fileName + "/rtreeRelation").collect().head

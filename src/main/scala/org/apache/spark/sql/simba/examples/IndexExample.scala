@@ -17,16 +17,16 @@ object IndexExample {
   def main(args: Array[String]): Unit = {
     val simbaSession = SimbaSession
       .builder()
-//      .master("local[4]")
+      .master("local[4]")
       .appName("IndexExample")
-      .config("simba.index.partitions", "64")
+      .config("simba.index.partitions", "8")
       .getOrCreate()
-    if(args.length==1){
-      buildIndex(simbaSession,args(0))
-      useIndex(simbaSession,args(0))
-    }
+//    if(args.length==1){
+////      buildIndex(simbaSession,args(0))
+      useIndex(simbaSession)
+//    }
 //
-//    useIndex1(simbaSession)
+//    useIndex1(simbaSession,args)
     //useIndex2(simbaSession)
     simbaSession.stop()
   }
@@ -47,21 +47,22 @@ object IndexExample {
     simba.indexTable("a", RTreeType, "testqtree", Array("x", "y"))
 
     simba.showIndex("a")
-//    val fileName = "file:///d:\\Index"
+    val fileName = "file:///d:\\Index"
 
     simba.persistIndex("testqtree", "file://"+fileName)
 
   }
 
-  private def useIndex(simba: SimbaSession,fileName:String): Unit ={
+  private def useIndex(simba: SimbaSession): Unit ={
     import simba.implicits._
-    val datapoints = Seq(PointData(1.0, 1.0, 3.0, "1"), PointData(2.0, 2.0, 3.0, "2"), PointData(2.0, 2.0, 3.0, "3"),
-      PointData(2.0, 2.0, 3.0, "4"), PointData(3.0, 3.0, 3.0, "5"), PointData(4.0, 4.0, 3.0, "6")).toDS
-//    val datapoints = simba.sparkContext.textFile("file:///home/ruanke/normal.csv").map(f => {
-//        val line = f.split(",").toList
-//        PointData(line(1).toDouble, line(2).toDouble, line(3).toDouble, line(0))
-//      }).toDS()
-//    val fileName = "file://"+/d:\\Index"
+//    val datapoints = Seq(PointData(1.0, 1.0, 3.0, "1"), PointData(2.0, 2.0, 3.0, "2"), PointData(2.0, 2.0, 3.0, "3"),
+//      PointData(2.0, 2.0, 3.0, "4"), PointData(3.0, 3.0, 3.0, "5"), PointData(4.0, 4.0, 3.0, "6")).toDS
+//    val sc = SimbaSession.getDefaultSession.get.sparkContext
+    val datapoints = simba.sparkContext.textFile("file:///home/ruanke/normal.csv").map(f => {
+        val line = f.split(",").toList
+        PointData(line(1).toDouble, line(2).toDouble, line(3).toDouble, line(0))
+      }).toDS()
+   val fileName = "file:///d:\\Index"
     import simba.simbaImplicits._
     datapoints.loadIndex("testqtree", "file://"+fileName)
     //import simba.simbaImplicits._
@@ -70,7 +71,7 @@ object IndexExample {
     res.show()
   }
 
-  private def useIndex1(simba: SimbaSession): Unit = {
+  private def useIndex1(simba: SimbaSession, args:Array[String]): Unit = {
     import simba.implicits._
     //import simba.simbaImplicits._
     //val datapoints = Seq(PointData(1.0, 1.0, 3.0, "1"),  PointData(2.0, 2.0, 3.0, "2"), PointData(2.0, 2.0, 3.0, "3"),
@@ -86,7 +87,7 @@ object IndexExample {
     //simba.indexTable("b", RTreeType, "QuadTreeForData", Array("x", "y"))
     var end = System.currentTimeMillis()
     //println("Create Index cost: "+(end-start))
-    val fileName = "file:///home/ruanke/work/test/Simba/Index_2G"
+    val fileName = "file:///home/ruanke/work/"+args(0)
     import simba.simbaImplicits._
     datapoints.loadIndex("testqtree", fileName)
     simba.showIndex("b")
