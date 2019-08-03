@@ -221,6 +221,7 @@ class Dataset[T] private[simba] (@transient val simbaSession: SimbaSession,
     * @group extended
     */
   def loadIndex(indexName: String, fileName: String): this.type = {
+    this.logicalPlan.key = "testqtree"
     simbaSession.sessionState.indexManager.loadIndex(this.simbaSession, indexName, fileName)
     this
   }

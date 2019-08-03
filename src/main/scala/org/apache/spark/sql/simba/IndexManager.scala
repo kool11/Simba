@@ -23,7 +23,7 @@ import org.apache.spark.sql.simba.index._
 import org.apache.spark.sql.{Dataset => SQLDataset}
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.plans.logical.{LogicalPlan, SubqueryAlias}
-import org.apache.spark.storage.StorageLevel
+import org.apache.spark.storage.{RDDBlockId, StorageLevel}
 import org.apache.spark.storage.StorageLevel._
 
 import scala.collection.mutable.ArrayBuffer
@@ -188,7 +188,60 @@ private[simba] class IndexManager extends Logging {
     val info = sparkContext.objectFile[IndexInfo](fileName + "/indexInfo").collect().head
     //val plan = sparkContext.objectFile[LogicalPlan](fileName + "/plan").collect().head
     val plan = null
-    val rdd = sparkContext.objectFile[IPartition](fileName + "/rdd")
+    val rdd = sparkContext.objectFile[IPartition](fileName + "/rdd").persist(StorageLevel.MEMORY_AND_DISK_SER)
+    def func1(index:Int, iter:Iterator[IPartition]):Iterator[(Array[Double],Array[Double],Int)]={
+      var low: Array[Double] = null
+      var high:Array[Double] = null
+      iter.foreach{ part=>
+        part.index match {
+          case RTree(root)=>
+            if(low==null){
+              low = root.m_mbr.low.coord
+              high = root.m_mbr.high.coord
+            }else{
+              low.zip(root.m_mbr.low.coord).map(x => Math.min(x._1, x._2))
+              high.zip(root.m_mbr.low.coord).map(x => Math.max(x._1, x._2))
+            }
+        }
+      }
+      val arr:(Array[Double],Array[Double],Int) = (low,high,index)
+      Array(arr).iterator
+    }
+    val temp = rdd.mapPartitionsWithIndex{(index,iter)=>
+      var low: Array[Double] = null
+      var high:Array[Double] = null
+      iter.foreach{part=>
+          part.index match {
+            case RTree(root)=>
+              if(low==null){
+                low = root.m_mbr.low.coord
+                high = root.m_mbr.high.coord
+              }else{
+                low.zip(root.m_mbr.low.coord).map(x => Math.min(x._1, x._2))
+                high.zip(root.m_mbr.low.coord).map(x => Math.max(x._1, x._2))
+              }
+            case _=>
+          }
+        }
+//        part.index
+      val arr:(Array[Double],Array[Double],Int) = (low,high,index)
+      Array(arr).iterator
+    }.collect().filter(p=>(p._1!=null&&p._2!=null))
+
+    import org.apache.spark.sql.simba.spatial.{MBR,Point}
+    val map:List[(RDDBlockId,MBR)] = temp.map{iter=>
+        (RDDBlockId(rdd.id,iter._3),MBR(Point(iter._1),Point(iter._2)))
+    }.toList
+
+//    SimbaSession.addDistanceArray(map)
+<<<<<<< HEAD
+    val bc=sparkContext.broadcast(map)
+=======
+    val bc = sparkContext.broadcast(map)
+>>>>>>> 0e1b96f78e230df3476f2fd845cbc47bb46d2572
+    println(bc.toString())
+    sparkContext.schedulerBackend.BlockIdMapToMBR(bc)
+
     if (info.indexType == RTreeType){
 //      val rtreeRelation = sparkContext.objectFile[RTreeIndexedRelation](fileName + "/rtreeRelation").collect().head
 //      indexedData += IndexedData(indexName, plan,
