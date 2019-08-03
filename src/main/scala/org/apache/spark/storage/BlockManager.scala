@@ -552,7 +552,7 @@ private[spark] class BlockManager(
       count = count+1
       val (blockId, value)=sortHeap.poll()
       log.info(s"prefetching local block $blockId from disk")
-      blockInfoManager.lockForReading(blockId,false) match {
+      blockInfoManager.lockForReading(blockId) match {
         case None =>
           logDebug(s"Block $blockId was not found")
         case Some(info) =>

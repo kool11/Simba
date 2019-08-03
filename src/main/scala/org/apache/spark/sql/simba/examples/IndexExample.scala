@@ -21,11 +21,11 @@ object IndexExample {
       .appName("IndexExample")
       .config("simba.index.partitions", "8")
       .getOrCreate()
-//    if(args.length==1){
-////      buildIndex(simbaSession,args(0))
-      useIndex(simbaSession)
-//    }
-//
+    if(args.length>=1){
+      //buildIndex(simbaSession,args(0))
+      //println(args(0))
+      useIndex1(simbaSession,args)
+    }
 //    useIndex1(simbaSession,args)
     //useIndex2(simbaSession)
     simbaSession.stop()
@@ -33,13 +33,13 @@ object IndexExample {
 
   private def buildIndex(simba: SimbaSession ,fileName:String): Unit = {
     import simba.implicits._
-    val datapoints = Seq(PointData(1.0, 1.0, 3.0, "1"), PointData(2.0, 2.0, 3.0, "2"), PointData(2.0, 9.0, 3.0, "3"),
-      PointData(2.0, 2.0, 3.0, "4"), PointData(3.0, 3.0, 3.0, "5"), PointData(4.0, 4.0, 3.0, "6")).toDS
-//
-//      val datapoints = simba.sparkContext.textFile("file:///home/ruanke/normal.csv").map(f => {
-//        val line = f.split(",").toList
-//        PointData(line(1).toDouble, line(2).toDouble, line(3).toDouble, line(0))
-//      }).toDS()
+//    val datapoints = Seq(PointData(1.0, 1.0, 3.0, "1"), PointData(2.0, 2.0, 3.0, "2"), PointData(2.0, 9.0, 3.0, "3"),
+//      PointData(2.0, 2.0, 3.0, "4"), PointData(3.0, 3.0, 3.0, "5"), PointData(4.0, 4.0, 3.0, "6")).toDS
+
+      val datapoints = simba.sparkContext.textFile("file:///home/ruanke/normal.csv").map(f => {
+        val line = f.split(",").toList
+        PointData(line(1).toDouble, line(2).toDouble, line(3).toDouble, line(0))
+      }).toDS()
 
     datapoints.createOrReplaceTempView("a")
     //simba.indexTable(tableName = "a",HashMapType,"test",Array("x","y"))
@@ -102,7 +102,8 @@ object IndexExample {
     var total = 0L
     import java.io.FileReader
     import java.io.BufferedReader
-    val in = new FileReader("/home/ruanke/work/simba/Simba/query_100.txt")
+//    val in = new FileReader("/home/ruanke/work/simba/Simba/query_100.txt")
+    val in = new FileReader("/home/ruanke/work/simba/Simba/"+args(1))
     val reader = new BufferedReader(in)
     var s = reader.readLine()
     while(s!=null){
@@ -116,27 +117,27 @@ object IndexExample {
     }
 
     for(a <- test){
-      var x:Double = a._1
-      var y:Double = a._2
+      val x:Double = a._1
+      val y:Double = a._2
       //println("x:"+x+" y:"+y)
       start = System.currentTimeMillis()
       res.knn(Array("x", "y"), Array(x, y), 10).collect()
       end = System.currentTimeMillis()
       val temp = end-start
-      test.add((x,y))
       total = total+temp
       costTime.add(temp)
-      Thread.sleep(1000)
+      Thread.sleep(10000)
       //println("query cost: "+(end-start))
     }
     import java.io.FileWriter
-    val out2 = new FileWriter("/home/ruanke/work/test/Simba/test.txt",true)
+//    val out2 = new FileWriter("/home/ruanke/work/test/Simba/test.txt",true)
+    val out2 = new FileWriter("/home/ruanke/work/test/Simba/"+args(2),true)
     for(i<-costTime) {
       out2.write(i.toString+"\n")
     }
     out2.close()
 
-    println(total/50)
+    println(total/test.size)
     //res.knn(Array("x", "y"),Array(2.0, 1.0),1).show(4)
   }
 
