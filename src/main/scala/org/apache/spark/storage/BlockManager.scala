@@ -552,7 +552,7 @@ private[spark] class BlockManager(
       count = count+1
       val (blockId, value)=sortHeap.poll()
       log.info(s"prefetching local block $blockId from disk")
-      blockInfoManager.lockForReading(blockId) match {
+      blockInfoManager.lockForWriting(blockId) match {
         case None =>
           logDebug(s"Block $blockId was not found")
         case Some(info) =>
@@ -586,7 +586,7 @@ private[spark] class BlockManager(
               }
             }
           }
-
+          releaseLock(blockId)
       }
     }
     log.info("prefetched local block size is: "+result.size)
