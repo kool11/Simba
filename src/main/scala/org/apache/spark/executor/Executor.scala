@@ -585,6 +585,7 @@ private[spark] class Executor(
             val result = env.blockManager.prefetch()
             result.foreach(s=>logInfo(s"prefetch $s from disk successfully"))
           }
+          env.blockManager.releaseAllLocksForTask(-1024)
           Thread.sleep(10000)
         }
 
