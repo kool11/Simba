@@ -568,8 +568,8 @@ private[spark] class BlockManager(
                 val classTag = info.classTag.asInstanceOf[ClassTag[Any]]
                 val putSucceeded=memoryStore.putIteratorAsValues(blockId, diskValues, classTag, true)
                 putSucceeded match {
-                  case  Left(v)=>result+blockId.name
-                  case Right(b)=>
+                  case  Left(v)=>logInfo(s"persisting $blockId false")
+                  case Right(b)=>result+blockId.name
                 }
                 //maybeCacheDiskValuesInMemory(info, blockId, level, diskValues)
               } else {
@@ -586,8 +586,9 @@ private[spark] class BlockManager(
               }
             }
           }
-          releaseLock(blockId)
+      //    releaseLock(blockId)
       }
+      releaseLock(blockId)
     }
     log.info("prefetched local block size is: "+result.size)
     return result

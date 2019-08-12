@@ -188,7 +188,7 @@ private[simba] class IndexManager extends Logging {
     val info = sparkContext.objectFile[IndexInfo](fileName + "/indexInfo").collect().head
     //val plan = sparkContext.objectFile[LogicalPlan](fileName + "/plan").collect().head
     val plan = null
-    val rdd = sparkContext.objectFile[IPartition](fileName + "/rdd")
+    val rdd = sparkContext.objectFile[IPartition](fileName + "/rdd").persist(StorageLevel.MEMORY_AND_DISK_SER)
     def func1(index:Int, iter:Iterator[IPartition]):Iterator[(Array[Double],Array[Double],Int)]={
       var low: Array[Double] = null
       var high:Array[Double] = null

@@ -17,9 +17,9 @@ object IndexExample {
   def main(args: Array[String]): Unit = {
     val simbaSession = SimbaSession
       .builder()
-      .master("local[4]")
+//      .master("local[4]")
       .appName("IndexExample")
-      .config("simba.index.partitions", "8")
+      .config("simba.index.partitions", "200")
       .getOrCreate()
     if(args.length>=1){
       //buildIndex(simbaSession,args(0))
@@ -84,12 +84,12 @@ object IndexExample {
     datapoints.createOrReplaceTempView("b")
 
     var start = System.currentTimeMillis()
-    //simba.indexTable("b", RTreeType, "QuadTreeForData", Array("x", "y"))
+    simba.indexTable("b", RTreeType, "QuadTreeForData", Array("x", "y"))
     var end = System.currentTimeMillis()
-    //println("Create Index cost: "+(end-start))
+    println("Create Index cost: "+(end-start))
     val fileName = "file:///home/ruanke/work/"+args(0)
     import simba.simbaImplicits._
-    datapoints.loadIndex("testqtree", fileName)
+    //datapoints.loadIndex("testqtree", fileName)
     simba.showIndex("b")
 
     val res = simba.sql("SELECT * FROM b")
@@ -121,7 +121,8 @@ object IndexExample {
       val y:Double = a._2
       //println("x:"+x+" y:"+y)
       start = System.currentTimeMillis()
-      res.knn(Array("x", "y"), Array(x, y), 10).collect()
+      res.range(Array("x", "y"), Array(100.0, 500.0), Array(500.0,1000.0)).collect()
+      //res.knn(Array("x", "y"), Array(x, y), 10).collect()
       end = System.currentTimeMillis()
       val temp = end-start
       total = total+temp
