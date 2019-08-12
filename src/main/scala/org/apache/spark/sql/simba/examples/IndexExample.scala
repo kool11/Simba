@@ -33,13 +33,13 @@ object IndexExample {
 
   private def buildIndex(simba: SimbaSession ,fileName:String): Unit = {
     import simba.implicits._
-//    val datapoints = Seq(PointData(1.0, 1.0, 3.0, "1"), PointData(2.0, 2.0, 3.0, "2"), PointData(2.0, 9.0, 3.0, "3"),
-//      PointData(2.0, 2.0, 3.0, "4"), PointData(3.0, 3.0, 3.0, "5"), PointData(4.0, 4.0, 3.0, "6")).toDS
+    val datapoints = Seq(PointData(1.0, 1.0, 3.0, "1"), PointData(2.0, 2.0, 3.0, "2"), PointData(2.0, 9.0, 3.0, "3"),
+      PointData(2.0, 2.0, 3.0, "4"), PointData(3.0, 3.0, 3.0, "5"), PointData(4.0, 4.0, 3.0, "6")).toDS
 
-      val datapoints = simba.sparkContext.textFile("file:///home/ruanke/normal.csv").map(f => {
-        val line = f.split(",").toList
-        PointData(line(1).toDouble, line(2).toDouble, line(3).toDouble, line(0))
-      }).toDS()
+//      val datapoints = simba.sparkContext.textFile("file:///home/ruanke/normal.csv").map(f => {
+//        val line = f.split(",").toList
+//        PointData(line(1).toDouble, line(2).toDouble, line(3).toDouble, line(0))
+//      }).toDS()
 
     datapoints.createOrReplaceTempView("a")
     //simba.indexTable(tableName = "a",HashMapType,"test",Array("x","y"))
@@ -49,7 +49,7 @@ object IndexExample {
     simba.showIndex("a")
     val fileName = "file:///d:\\Index"
 
-    simba.persistIndex("testqtree", "file://"+fileName)
+    //simba.persistIndex("testqtree", "file://"+fileName)
 
   }
 
@@ -121,8 +121,8 @@ object IndexExample {
       val y:Double = a._2
       //println("x:"+x+" y:"+y)
       start = System.currentTimeMillis()
-      res.range(Array("x", "y"), Array(100.0, 500.0), Array(500.0,1000.0)).collect()
-      //res.knn(Array("x", "y"), Array(x, y), 10).collect()
+      //res.range(Array("x", "y"), Array(100.0, 500.0), Array(500.0,3000.0)).collect()
+      res.knn(Array("x", "y"), Array(x, y), 1000000).collect()
       end = System.currentTimeMillis()
       val temp = end-start
       total = total+temp

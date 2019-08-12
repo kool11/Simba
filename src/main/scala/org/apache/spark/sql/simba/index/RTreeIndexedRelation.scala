@@ -55,7 +55,7 @@ private[simba] case class RTreeIndexedRelation(output: Seq[Attribute], child: Sp
   }
   require(checkKeys)
 
-  lazy val dimension = ShapeUtils.getPointFromRow(child.execute().first(), column_keys, child, isPoint).coord.length
+  val dimension = ShapeUtils.getPointFromRow(child.execute().first(), column_keys, child, isPoint).coord.length
 
   if (_indexedRDD == null) {
     buildIndex()
@@ -81,16 +81,16 @@ private[simba] case class RTreeIndexedRelation(output: Seq[Attribute], child: Sp
       Array(IPartition(data.map(_._2), index)).iterator
     }.persist(StorageLevel.MEMORY_AND_DISK_SER)
 
-//    val distArray = new mutable.LinkedHashMap[BlockId,MBR]
-//    val repartition_rdd_id:Int=indexed.id
-//    import org.apache.spark.storage.RDDBlockId
-//    val map:List[(RDDBlockId,MBR)]=mbr_bounds.map((mbr)=>{
-//      (RDDBlockId(repartition_rdd_id,mbr._2),mbr._1)
-//    }).toList
-//    val bc=SimbaSession.getActiveSession.get.sparkContext.broadcast(map)
-//    println(bc.toString())
-//    SimbaSession.getActiveSession.get.sparkContext.schedulerBackend.BlockIdMapToMBR(bc)
-//    SimbaSession.addDistanceArray(map)
+    val distArray = new mutable.LinkedHashMap[BlockId,MBR]
+    val repartition_rdd_id:Int=indexed.id
+    import org.apache.spark.storage.RDDBlockId
+    val map:List[(RDDBlockId,MBR)]=mbr_bounds.map((mbr)=>{
+      (RDDBlockId(repartition_rdd_id,mbr._2),mbr._1)
+    }).toList
+    val bc=SimbaSession.getActiveSession.get.sparkContext.broadcast(map)
+    println(bc.toString())
+    SimbaSession.getActiveSession.get.sparkContext.schedulerBackend.BlockIdMapToMBR(bc)
+    SimbaSession.addDistanceArray(map)
     val partitionSize = indexed.mapPartitions(iter => iter.map(_.data.length)).collect()
 
     global_rtree = RTree(mbr_bounds.zip(partitionSize)
