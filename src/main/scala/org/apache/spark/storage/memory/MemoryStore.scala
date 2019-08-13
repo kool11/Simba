@@ -248,13 +248,13 @@ private[spark] class MemoryStore(
         //val th = Thread.currentThread
         //if (th.getName.equals("prefetch-thread")&&entries.checkFirstTimeStoreInMemory(blockId))
 
-        if(canBeReplace){
+        if(false){
           logInfo(s"check $blockId can be replace")
           entry.memoryMode == memoryMode
         }
         else{
           entry.memoryMode == memoryMode && (rddToAdd.isEmpty || rddToAdd != getRddId(blockId))
-        }
+       }
       }
       // This is synchronized to ensure that the set of entries is not changed
       // (because of getValue or getBytes) while traversing the iterator, as that

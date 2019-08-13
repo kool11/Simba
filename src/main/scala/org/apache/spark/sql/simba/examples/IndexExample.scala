@@ -123,7 +123,7 @@ object IndexExample {
       start = System.currentTimeMillis()
       var i = 0
       while(i<5){
-         res.range(Array("x", "y"), Array(x, y), Array(x*2,y*2)).collect()
+         res.range(Array("x", "y"), Array(x, y), Array(x,y)).collect()
          Thread.sleep(2000) 
          i = i+1
       }
