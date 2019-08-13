@@ -121,13 +121,20 @@ object IndexExample {
       val y:Double = a._2
       //println("x:"+x+" y:"+y)
       start = System.currentTimeMillis()
-      //res.range(Array("x", "y"), Array(100.0, 500.0), Array(500.0,3000.0)).collect()
-      res.knn(Array("x", "y"), Array(x, y), 1000000).collect()
+      var i = 0
+      while(i<5){
+         res.range(Array("x", "y"), Array(x, y), Array(x*2,y*2)).collect()
+         Thread.sleep(2000) 
+         i = i+1
+      }
+      //res.range(Array("x", "y"), Array(x, y), Array(x*10,y*10)).collect()
+      
+      //res.knn(Array("x", "y"), Array(x, y), 1000000).collect()
       end = System.currentTimeMillis()
       val temp = end-start
       total = total+temp
       costTime.add(temp)
-      Thread.sleep(10000)
+      Thread.sleep(5000)
       //println("query cost: "+(end-start))
     }
     import java.io.FileWriter

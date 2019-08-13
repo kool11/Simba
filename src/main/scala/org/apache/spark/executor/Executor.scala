@@ -577,7 +577,7 @@ private[spark] class Executor(
     val initialDelay = 5L
     val prefetchTask = new Runnable {
       override def run(): Unit = {
-        Thread.sleep(10000)
+        Thread.sleep(100000)
         while (true){
           logInfo("prefetch-thread is running ")
           if(runningTasks.size()<2){
@@ -586,7 +586,7 @@ private[spark] class Executor(
             result.foreach(s=>logInfo(s"prefetch $s from disk successfully"))
           }
 //          env.blockManager.releaseAllLocksForTask(-1024)
-          Thread.sleep(10000)
+          Thread.sleep(100000)
         }
 
       }
