@@ -134,10 +134,10 @@ class knnSpatialPQ2[A, B](val k_close: Int, memoryStore: MemoryStore)
         super.remove(key) match {
           case Some(v) => super.put(key, v)
         }
-      else {
-        logInfo(s"will prefetch $key")
-        key match {
-          case b:BlockId=>
+//      else {
+//        logInfo(s"will prefetch $key")
+//        key match {
+//          case b:BlockId=>
 //            memoryStore.blockToCache.synchronized{
 //              if(memoryStore.blockToCache.contains(key.asInstanceOf[BlockId])){
 //                memoryStore.blockToCache.get(key.asInstanceOf[BlockId]) match {
@@ -148,10 +148,10 @@ class knnSpatialPQ2[A, B](val k_close: Int, memoryStore: MemoryStore)
 //                memoryStore.blockToCache.put(key.asInstanceOf[BlockId],1)
 //              }
 //            }
-
-        }
-        //SparkEnv.get.blockManager.prefetch(key.asInstanceOf[BlockId])
-      }
+//
+//        }
+//        //SparkEnv.get.blockManager.prefetch(key.asInstanceOf[BlockId])
+//      }
     } else {
       if (super.contains(key))
         super.remove(key) match {
@@ -163,7 +163,7 @@ class knnSpatialPQ2[A, B](val k_close: Int, memoryStore: MemoryStore)
   //get block from memory
   def getSpatial(key: A): Option[B] = {
     if (useSpatial && neighbours.get(key).isDefined) {
-      logInfo("neighbour contain this block: "+ key)
+      //logInfo("neighbour contain this block: "+ key)
       neighbours.synchronized {
         val iter = neighbours(key).iterator()
         while (iter.hasNext)
@@ -203,7 +203,7 @@ private[spark] class MemoryStore(
   //private val persistRDD = new mutable.LinkedHashMap[BlockId,Boolean]()
 
   private def updateEntryNeighbour(blockId: BlockId) = {
-    logInfo("update the entry neighbour list with block:" + blockId.name)
+    //logInfo("update the entry neighbour list with block:" + blockId.name)
     entries.synchronized {
       entries.updateNeighbour(blockId)
     }
@@ -261,7 +261,15 @@ private[spark] class MemoryStore(
       // can lead to exceptions.
       entries.synchronized {
         canBeReplace = temp match {
-          case Some(x)=>entries.checkFirstTimeStoreInMemory(x)
+          case Some(x)=> {
+            blockToCache.get(x) match {
+              case Some(num)=>
+                if(num>2) true
+                else false
+              case _ => false
+            }
+            //entries.checkFirstTimeStoreInMemory(x)
+          }
           case _=>false
         }
         logInfo(s"$temp can be move to memory:"+canBeReplace)
@@ -278,7 +286,7 @@ private[spark] class MemoryStore(
             if (blockInfoManager.lockForWriting(blockId, blocking = false).isDefined) {
               selectedBlocks += blockId
               freedMemory += entry.size
-              logInfo(s"$blockId is selected size is "+entry.size)
+//              logInfo(s"$blockId is selected size is "+entry.size)
             }
           }
         }
@@ -322,6 +330,12 @@ private[spark] class MemoryStore(
       } else {
         blockId.foreach { id =>
           logInfo(s"Will not store $id")
+          if(id.isRDD){
+            blockToCache.get(id) match {
+              case Some(a) => blockToCache.put(id, a+1)
+              case _ => blockToCache.put(id, 1)
+            }
+          }
         }
         selectedBlocks.foreach { id =>
           blockInfoManager.unlock(id)

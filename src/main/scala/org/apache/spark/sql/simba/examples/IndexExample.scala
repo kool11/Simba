@@ -122,8 +122,8 @@ object IndexExample {
       //println("x:"+x+" y:"+y)
       start = System.currentTimeMillis()
       var i = 0
-      while(i<5){
-         res.range(Array("x", "y"), Array(x, y), Array(x,y)).collect()
+      while(i<10){
+         res.range(Array("x", "y"), Array(x, y), Array(x*4,y*4)).collect()
          Thread.sleep(2000) 
          i = i+1
       }
