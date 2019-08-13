@@ -274,7 +274,7 @@ private[spark] class MemoryStore(
             // We don't want to evict blocks which are currently being read, so we need to obtain
             // an exclusive write lock on blocks which are candidates for eviction. We perform a
             // non-blocking "tryLock" here in order to ignore blocks which are locked for reading:
-            logInfo(s"$temp can be move to memory by replace $blockId")
+            //logInfo(s"$temp can be move to memory by replace $blockId")
             if (blockInfoManager.lockForWriting(blockId, blocking = false).isDefined) {
               selectedBlocks += blockId
               freedMemory += entry.size
@@ -301,7 +301,7 @@ private[spark] class MemoryStore(
           blockInfoManager.removeBlock(blockId)
         }
       }
-      logInfo(s"free Memory is $freedMemory, space is $space")
+      //logInfo(s"free Memory is $freedMemory, space is $space")
       if (freedMemory >= space) {
         logInfo(s"${selectedBlocks.size} blocks selected for dropping " +
           s"(${Utils.bytesToString(freedMemory)} bytes) ,for block:"+temp)
